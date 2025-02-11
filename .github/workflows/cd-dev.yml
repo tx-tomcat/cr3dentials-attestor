@@ -1,0 +1,27 @@
+name: Deploy ZK_ATTESTOR_DEV
+run-name: ${{ github.actor }} is deploying ZK_ATTESTOR_DEV
+on:
+  push:
+    branches:
+      - 'develop'
+jobs:
+  deploy:
+    runs-on: zk-attestor-sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - id: "auth"
+        uses: "google-github-actions/auth@v1"
+        with:
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+      - name: Set up Cloud SDK
+        uses: "google-github-actions/setup-gcloud@v1"
+      - name: Access Secret from Secret Manager
+        run: |
+          gcloud secrets versions access latest --secret="ENV_FILE_ZK_ATTESTOR_DEV" > .env
+      - run: |
+          docker compose -f docker-compose.yaml down
+          docker system prune
+          docker build -t zk-attestor-sdk .
+          docker compose -f docker-compose.yaml up -d
+          docker image prune -f

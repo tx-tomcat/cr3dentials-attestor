@@ -1,0 +1,28 @@
+services:
+  zk-attestor-sdk:
+    container_name: zk-attestor-sdk
+    image: zk-attestor-sdk
+    env_file:
+      - .env
+    ports:
+      - ${PORT}:${PORT}
+    tty: true
+    restart: on-failure
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1'
+          memory: '2192MB'
+        reservations:
+          cpus: '1'
+          memory: '1500MB'
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"   # number of files or file count
+        max-size: "100m" # file size
+networks:
+  default:
+    external: true
+    name: nginx-docker_default

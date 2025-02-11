@@ -1,46 +1,56 @@
-import { strToUint8Array } from '@reclaimprotocol/tls'
-import { providers } from 'src/providers'
-import httpProvider from 'src/providers/http'
+import { strToUint8Array } from "@reclaimprotocol/tls";
+import { providers } from "src/providers";
+import httpProvider from "src/providers/http";
 import {
-	extractHTMLElement, extractHTMLElements,
-	extractJSONValueIndex, extractJSONValueIndexes,
-	makeRegex,
-	matchRedactedStrings
-} from 'src/providers/http/utils'
-import { ProviderParams, Transcript } from 'src/types'
-import { assertValidateProviderParams, getProviderValue, hashProviderParams, uint8ArrayToStr } from 'src/utils'
-import { deserialize, serialize } from 'v8'
+  extractHTMLElement,
+  extractHTMLElements,
+  extractJSONValueIndex,
+  extractJSONValueIndexes,
+  makeRegex,
+  matchRedactedStrings,
+} from "src/providers/http/utils";
+import { ProviderParams, Transcript } from "src/types";
+import {
+  assertValidateProviderParams,
+  getProviderValue,
+  hashProviderParams,
+  uint8ArrayToStr,
+} from "src/utils";
+import { deserialize, serialize } from "v8";
 
-jest.setTimeout(60_000)
+jest.setTimeout(60_000);
 
-describe('HTTP Provider Utils tests', () => {
+describe("HTTP Provider Utils tests", () => {
+  const {
+    hostPort,
+    geoLocation,
+    getResponseRedactions,
+    createRequest,
+    assertValidProviderReceipt,
+  } = providers["http"];
 
-	const {
-		hostPort,
-		geoLocation,
-		getResponseRedactions,
-		createRequest,
-		assertValidProviderReceipt
-	} = providers['http']
+  const transcript: Transcript<Uint8Array> = JSON.parse(
+    '[{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioq","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=","sender":"server"},{"message":"R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHhhcmdzLm9yZw0KQ29udGVudC1MZW5ndGg6IDQNCkNvbm5lY3Rpb246IGNsb3NlDQpBY2NlcHQtRW5jb2Rpbmc6IGlkZW50aXR5DQp1c2VyLWFnZW50OiBNb3ppbGxhLzUuMA0K","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"DQoNCnQ=","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"Kg==","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"c3Q=","sender":"client"},{"message":"SFRUUC8xLjEgMjAwIE9LKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKjx0aXRsZT5BaWtlbiAmYW1wOyBEcmlzY29sbCAmYW1wOyBXZWJiPC90aXRsZT4qKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqT25lIG9mIHRoZSBmZXcgZXhjZXB0aW9ucyBpcyBhIHNlcmllcyBvZiBkb2N1bWVudHMgdGhhdCBJJ3ZlIHdyaXR0ZW4KICAgIGJyZWFraW5nIGRvd24gY3J5cHRvZ3JhcGhpYyBhbmQgbmV0d29yayBwcm90b2NvbHMgYnl0ZS1ieS1ieXRlLiBJJ20KICAgIGFsd2F5cyBoZWFyaW5nIGZyb20gdGVhY2hlcnMsIHN0dWRlbnRzLCBhbmQgZmVsbG93IHNvZnR3YXJlIGRldmVsb3BlcnMKICAgIHdobyB1c2UgdGhlc2UgdG8gbGVhcm4sIHRvIGZpeCwgYW5kIHRvIHVuZGVyc3RhbmQuIEknbSB2ZXJ5IHByb3VkIG9mIHRoYXQuKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioq","sender":"server"},{"message":"Kio=","sender":"server"}]'
+  ).map((x) => ({
+    ...x,
+    message: Buffer.from(x.message, "base64"),
+  }));
 
-	const transcript: Transcript<Uint8Array> = JSON.parse('[{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioq","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=","sender":"server"},{"message":"R0VUIC8gSFRUUC8xLjENCkhvc3Q6IHhhcmdzLm9yZw0KQ29udGVudC1MZW5ndGg6IDQNCkNvbm5lY3Rpb246IGNsb3NlDQpBY2NlcHQtRW5jb2Rpbmc6IGlkZW50aXR5DQp1c2VyLWFnZW50OiBNb3ppbGxhLzUuMA0K","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"DQoNCnQ=","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"Kg==","sender":"client"},{"message":"KioqKio=","sender":"client"},{"message":"c3Q=","sender":"client"},{"message":"SFRUUC8xLjEgMjAwIE9LKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg==","sender":"server"},{"message":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKjx0aXRsZT5BaWtlbiAmYW1wOyBEcmlzY29sbCAmYW1wOyBXZWJiPC90aXRsZT4qKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqT25lIG9mIHRoZSBmZXcgZXhjZXB0aW9ucyBpcyBhIHNlcmllcyBvZiBkb2N1bWVudHMgdGhhdCBJJ3ZlIHdyaXR0ZW4KICAgIGJyZWFraW5nIGRvd24gY3J5cHRvZ3JhcGhpYyBhbmQgbmV0d29yayBwcm90b2NvbHMgYnl0ZS1ieS1ieXRlLiBJJ20KICAgIGFsd2F5cyBoZWFyaW5nIGZyb20gdGVhY2hlcnMsIHN0dWRlbnRzLCBhbmQgZmVsbG93IHNvZnR3YXJlIGRldmVsb3BlcnMKICAgIHdobyB1c2UgdGhlc2UgdG8gbGVhcm4sIHRvIGZpeCwgYW5kIHRvIHVuZGVyc3RhbmQuIEknbSB2ZXJ5IHByb3VkIG9mIHRoYXQuKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioq","sender":"server"},{"message":"Kio=","sender":"server"}]')
-		.map((x) => ({
-			...x,
-			message: Buffer.from(x.message, 'base64'),
-		}))
+  it("should parse xpath & JSON path", () => {
+    const json = extractHTMLElement(
+      html,
+      "//script[@data-component-name='Navbar']",
+      true
+    );
+    const val = extractJSONValueIndex(json, "$.hasBookface");
+    const rm = '"hasBookface":true';
+    const regexp = new RegExp(rm, "gim");
 
-	it('should parse xpath & JSON path', () => {
-		const json = extractHTMLElement(html, "//script[@data-component-name='Navbar']", true)
-		const val = extractJSONValueIndex(json, '$.hasBookface')
-		const rm = '"hasBookface":true'
-		const regexp = new RegExp(rm, 'gim')
+    expect(regexp.test(json.slice(val.start, val.end))).toBe(true);
+  });
 
-		expect(regexp.test(json.slice(val.start, val.end))).toBe(true)
-	})
-
-
-	it('should extract complex JSON path', () => {
-		const json = `{
+  it("should extract complex JSON path", () => {
+    const json = `{
     "items":[
         {
             "name": "John Doe",
@@ -51,43 +61,57 @@ describe('HTTP Provider Utils tests', () => {
           "age":25
         }
     ]
-}`
-		const val = extractJSONValueIndex(json, '$.items[?(@.name.match(/.*oe/))].name')
-		const rm = '"name": "John Doe"'
-		const regexp = new RegExp(rm, 'gim')
+}`;
+    const val = extractJSONValueIndex(
+      json,
+      "$.items[?(@.name.match(/.*oe/))].name"
+    );
+    const rm = '"name": "John Doe"';
+    const regexp = new RegExp(rm, "gim");
 
-		expect(regexp.test(json.slice(val.start, val.end))).toBe(true)
-	})
+    expect(regexp.test(json.slice(val.start, val.end))).toBe(true);
+  });
 
-
-	it('should get inner & outer tag contents', () => {
-		const html = `<body>
+  it("should get inner & outer tag contents", () => {
+    const html = `<body>
 			  <div id="content123">This is <span>some</span> text!</div>
 			  <div id="content456">This is <span>some</span> other text!</div>
 			  <div id="content789">This is <span>some</span> irrelevant text!</div>
-			</body>`
+			</body>`;
 
-		let content = extractHTMLElement(html, "//div[contains(@id, 'content123')]", true)
-		expect(content).toEqual('This is <span>some</span> text!')
-		content = extractHTMLElement(html, "//div[contains(@id, 'content456')]", false)
-		expect(content).toEqual('<div id="content456">This is <span>some</span> other text!</div>')
-	})
+    let content = extractHTMLElement(
+      html,
+      "//div[contains(@id, 'content123')]",
+      true
+    );
+    expect(content).toEqual("This is <span>some</span> text!");
+    content = extractHTMLElement(
+      html,
+      "//div[contains(@id, 'content456')]",
+      false
+    );
+    expect(content).toEqual(
+      '<div id="content456">This is <span>some</span> other text!</div>'
+    );
+  });
 
-
-	it('should get multiple elements', () => {
-		const html = `<body>
+  it("should get multiple elements", () => {
+    const html = `<body>
 			  <div id="content123">This is <span>some</span> text!</div>
 			  <div id="content456">This is <span>some</span> other text!</div>
 			  <div id="content789">This is <span>some</span> irrelevant text!</div>
-			</body>`
+			</body>`;
 
-		const contents = extractHTMLElements(html, '//body/div', true)
-		expect(contents).toEqual(['This is <span>some</span> text!', 'This is <span>some</span> other text!', 'This is <span>some</span> irrelevant text!'])
-	})
+    const contents = extractHTMLElements(html, "//body/div", true);
+    expect(contents).toEqual([
+      "This is <span>some</span> text!",
+      "This is <span>some</span> other text!",
+      "This is <span>some</span> irrelevant text!",
+    ]);
+  });
 
-
-	it('should get multiple JSONPaths', () => {
-		const jsonData = `{
+  it("should get multiple JSONPaths", () => {
+    const jsonData = `{
     "firstName": "John",
     "lastName": "doe",
     "age": 26,
@@ -106,890 +130,933 @@ describe('HTTP Provider Utils tests', () => {
             "number": "0123-4567-8910"
         }
     ]
-}`
+}`;
 
-		const contents = extractJSONValueIndexes(jsonData, '$.phoneNumbers[*].number')
+    const contents = extractJSONValueIndexes(
+      jsonData,
+      "$.phoneNumbers[*].number"
+    );
 
-		const res: string[] = []
-		for(const { start, end } of contents) {
-			res.push(jsonData.slice(start, end))
-		}
+    const res: string[] = [];
+    for (const { start, end } of contents) {
+      res.push(jsonData.slice(start, end));
+    }
 
-		expect(res).toEqual(['"number": "0123-4567-8888"', '"number": "0123-4567-8910"'])
-	})
+    expect(res).toEqual([
+      '"number": "0123-4567-8888"',
+      '"number": "0123-4567-8910"',
+    ]);
+  });
 
-	it('should error on incorrect jsonPath', () => {
-		expect(() => {
-			extractJSONValueIndex(('{"asdf": 1}'), '(alert(origin))')
-		}).toThrow('loc.indexOf is not a function')
-	})
+  it("should error on incorrect jsonPath", () => {
+    expect(() => {
+      extractJSONValueIndex('{"asdf": 1}', "(alert(origin))");
+    }).toThrow("loc.indexOf is not a function");
+  });
 
-	it('should not error on incorrect regex', () => {
-		expect(() => {
-			const regexp = makeRegex('([a-z]+)+$')
-			regexp.test('a'.repeat(31) + '\x00')
-		}).not.toThrow()
-	})
+  it("should not error on incorrect regex", () => {
+    expect(() => {
+      const regexp = makeRegex("([a-z]+)+$");
+      regexp.test("a".repeat(31) + "\x00");
+    }).not.toThrow();
+  });
 
-	it('should hide chunked parts from response', () => {
-		const provider = httpProvider
-		const simpleChunk = Buffer.from('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n9\r\nchunk 1, \r\n7\r\nchunk 2\r\n0\r\n')
+  it("should hide chunked parts from response", () => {
+    const provider = httpProvider;
+    const simpleChunk = Buffer.from(
+      "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n9\r\nchunk 1, \r\n7\r\nchunk 2\r\n0\r\n"
+    );
 
-		if(provider.getResponseRedactions) {
-			const redactions = provider.getResponseRedactions(simpleChunk, {
-				method: 'GET',
-				url: 'https://test.com',
-				'responseMatches': [
+    if (provider.getResponseRedactions) {
+      const redactions = provider.getResponseRedactions(simpleChunk, {
+        method: "GET",
+        url: "https://test.com",
+        responseMatches: [],
+        responseRedactions: [
+          {
+            regex: "chunk 1, chunk 2",
+          },
+        ],
+      });
+      expect(redactions).toEqual([
+        {
+          fromIndex: 15,
+          toIndex: 95,
+        },
+        {
+          fromIndex: 104,
+          toIndex: 109,
+        },
+        {
+          fromIndex: 116,
+          toIndex: 121,
+        },
+      ]);
 
-				],
-				'responseRedactions': [
-					{
-						'regex': 'chunk 1, chunk 2'
-					}
-				],
-			})
-			expect(redactions).toEqual([
-				{
-					'fromIndex': 15,
-					'toIndex': 95
-				},
-				{
-					'fromIndex': 104,
-					'toIndex': 109
-				},
-				{
-					'fromIndex': 116,
-					'toIndex': 121
-				}
-			])
+      let start = 0;
+      let str = "";
+      for (const red of redactions) {
+        str += simpleChunk.subarray(start, red.fromIndex);
+        start = red.toIndex;
+      }
 
-			let start = 0
-			let str = ''
-			for(const red of redactions) {
-				str += simpleChunk.subarray(start, red.fromIndex)
-				start = red.toIndex
-			}
+      expect(str).toEqual("HTTP/1.1 200 OKchunk 1, chunk 2");
+    }
+  });
 
-			expect(str).toEqual('HTTP/1.1 200 OKchunk 1, chunk 2')
-		}
+  it("should perform complex redactions", () => {
+    const provider = httpProvider;
+    const response = Buffer.from(
+      'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 222\r\nConnection: close\r\n\r\n<body> <div id="c1">{"ages":[{"age":"26"},{"age":"27"},{"age":"28"}]}</div> <div id="c2">{"ages":[{"age":"27"},{"age":"28"},{"age":"29"}]}</div> <div id="c3">{"ages":[{"age":"29"},{"age":"30"},{"age":"31"}]}</div></body>\r\n'
+    );
 
-	})
+    if (provider.getResponseRedactions) {
+      const redactions = provider.getResponseRedactions(response, {
+        method: "GET",
+        url: "https://test.com",
+        responseMatches: [],
+        responseRedactions: [
+          {
+            xPath: "//body/div",
+            jsonPath: "$.ages[*].age",
+            regex: "(2|3)\\d",
+          },
+        ],
+      });
+      expect(redactions).toEqual([
+        {
+          fromIndex: 15,
+          toIndex: 122,
+        },
+        {
+          fromIndex: 124,
+          toIndex: 135,
+        },
+        {
+          fromIndex: 137,
+          toIndex: 148,
+        },
+        {
+          fromIndex: 150,
+          toIndex: 191,
+        },
+        {
+          fromIndex: 193,
+          toIndex: 204,
+        },
+        {
+          fromIndex: 206,
+          toIndex: 217,
+        },
+        {
+          fromIndex: 219,
+          toIndex: 260,
+        },
+        {
+          fromIndex: 262,
+          toIndex: 273,
+        },
+        {
+          fromIndex: 275,
+          toIndex: 286,
+        },
+        {
+          fromIndex: 288,
+          toIndex: 307,
+        },
+      ]);
 
-	it('should perform complex redactions', () => {
-		const provider = httpProvider
-		const response = Buffer.from('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 222\r\nConnection: close\r\n\r\n<body> <div id="c1">{"ages":[{"age":"26"},{"age":"27"},{"age":"28"}]}</div> <div id="c2">{"ages":[{"age":"27"},{"age":"28"},{"age":"29"}]}</div> <div id="c3">{"ages":[{"age":"29"},{"age":"30"},{"age":"31"}]}</div></body>\r\n')
+      let start = 0;
+      let str = "";
+      for (const red of redactions) {
+        str += response.subarray(start, red.fromIndex);
+        start = red.toIndex;
+      }
 
-		if(provider.getResponseRedactions) {
-			const redactions = provider.getResponseRedactions(response, {
-				method: 'GET',
-				url: 'https://test.com',
-				'responseMatches': [
+      expect(str).toEqual("HTTP/1.1 200 OK262728272829293031");
+    }
+  });
 
-				],
-				'responseRedactions': [
-					{
-						'xPath': '//body/div',
-						'jsonPath':'$.ages[*].age',
-						'regex':'(2|3)\\d'
-					}
-				],
-			})
-			expect(redactions).toEqual([
-				{
-					'fromIndex': 15,
-					'toIndex': 122
-				},
-				{
-					'fromIndex': 124,
-					'toIndex': 135
-				},
-				{
-					'fromIndex': 137,
-					'toIndex': 148
-				},
-				{
-					'fromIndex': 150,
-					'toIndex': 191
-				},
-				{
-					'fromIndex': 193,
-					'toIndex': 204
-				},
-				{
-					'fromIndex': 206,
-					'toIndex': 217
-				},
-				{
-					'fromIndex': 219,
-					'toIndex': 260
-				},
-				{
-					'fromIndex': 262,
-					'toIndex': 273
-				},
-				{
-					'fromIndex': 275,
-					'toIndex': 286
-				},
-				{
-					'fromIndex': 288,
-					'toIndex': 307
-				}
-			])
+  it("should perform complex redactions 2", () => {
+    const provider = httpProvider;
+    const response = Buffer.from(
+      'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 51\r\nConnection: close\r\n\r\n{"ages":[{"age":"26"},{"age":"27"},{"age":"28"}]}\r\n'
+    );
 
-			let start = 0
-			let str = ''
-			for(const red of redactions) {
-				str += response.subarray(start, red.fromIndex)
-				start = red.toIndex
-			}
+    if (provider.getResponseRedactions) {
+      const redactions = provider.getResponseRedactions(response, {
+        method: "GET",
+        url: "https://test.com",
+        responseMatches: [],
+        responseRedactions: [
+          {
+            jsonPath: "$.ages[*].age",
+            regex: "(2|3)\\d",
+          },
+        ],
+      });
+      expect(redactions).toEqual([
+        {
+          fromIndex: 15,
+          toIndex: 101,
+        },
+        {
+          fromIndex: 103,
+          toIndex: 114,
+        },
+        {
+          fromIndex: 116,
+          toIndex: 127,
+        },
+        {
+          fromIndex: 129,
+          toIndex: 135,
+        },
+      ]);
 
-			expect(str).toEqual('HTTP/1.1 200 OK262728272829293031')
-		}
+      let start = 0;
+      let str = "";
+      for (const red of redactions) {
+        str += response.subarray(start, red.fromIndex);
+        start = red.toIndex;
+      }
 
-	})
+      expect(str).toEqual("HTTP/1.1 200 OK262728");
+    }
+  });
 
-	it('should perform complex redactions 2', () => {
-		const provider = httpProvider
-		const response = Buffer.from('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 51\r\nConnection: close\r\n\r\n{"ages":[{"age":"26"},{"age":"27"},{"age":"28"}]}\r\n')
+  it("should perform complex redactions 3", () => {
+    const provider = httpProvider;
+    const response = Buffer.from(
+      'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 222\r\nConnection: close\r\n\r\n<body> <div id="c1">{"ages":[{"age":"26"},{"age":"27"},{"age":"28"}]}</div> <div id="c2">{"ages":[{"age":"27"},{"age":"28"},{"age":"29"}]}</div> <div id="c3">{"ages":[{"age":"29"},{"age":"30"},{"age":"31"}]}</div></body>\r\n'
+    );
 
-		if(provider.getResponseRedactions) {
-			const redactions = provider.getResponseRedactions(response, {
-				method: 'GET',
-				url: 'https://test.com',
-				'responseMatches': [
+    if (provider.getResponseRedactions) {
+      const redactions = provider.getResponseRedactions(response, {
+        method: "GET",
+        url: "https://test.com",
+        responseMatches: [],
+        responseRedactions: [
+          {
+            xPath: "//body/div",
+            regex: '"age":"\\d{2}"',
+          },
+        ],
+      });
+      expect(redactions).toEqual([
+        {
+          fromIndex: 15,
+          toIndex: 115,
+        },
+        {
+          fromIndex: 125,
+          toIndex: 184,
+        },
+        {
+          fromIndex: 194,
+          toIndex: 253,
+        },
+        {
+          fromIndex: 263,
+          toIndex: 307,
+        },
+      ]);
 
-				],
-				'responseRedactions': [
-					{
-						'jsonPath':'$.ages[*].age',
-						'regex':'(2|3)\\d'
-					}
-				],
-			})
-			expect(redactions).toEqual([
-				{
-					'fromIndex': 15,
-					'toIndex': 101
-				},
-				{
-					'fromIndex': 103,
-					'toIndex': 114
-				},
-				{
-					'fromIndex': 116,
-					'toIndex': 127
-				},
-				{
-					'fromIndex': 129,
-					'toIndex': 135
-				}
-			])
+      let start = 0;
+      let str = "";
+      for (const red of redactions) {
+        str += response.subarray(start, red.fromIndex);
+        start = red.toIndex;
+      }
 
-			let start = 0
-			let str = ''
-			for(const red of redactions) {
-				str += response.subarray(start, red.fromIndex)
-				start = red.toIndex
-			}
+      expect(str).toEqual('HTTP/1.1 200 OK"age":"26""age":"27""age":"29"');
+    }
+  });
 
-			expect(str).toEqual('HTTP/1.1 200 OK262728')
-		}
+  it("should get redactions from chunked response", () => {
+    const provider = httpProvider;
+    if (provider.getResponseRedactions) {
+      const redactions = provider.getResponseRedactions(chunkedResp, {
+        method: "GET",
+        url: "https://bookface.ycombinator.com/home",
+        responseMatches: [],
+        responseRedactions: [
+          {
+            xPath: "//script[@id='js-react-on-rails-context']",
+            jsonPath: "$.currentUser",
+          },
+          {
+            xPath: "//script[@data-component-name='BookfaceCsrApp']",
+            jsonPath: "$.hasBookface",
+          },
+          {
+            regex: 'code_version:\\s"[0-9a-f]{40}\\sruby',
+          },
+        ],
+      });
+      expect(redactions).toEqual([
+        {
+          fromIndex: 15,
+          toIndex: 17,
+        },
+        {
+          fromIndex: 52,
+          toIndex: 4760,
+        },
+        {
+          fromIndex: 4820,
+          toIndex: 53268,
+        },
+        {
+          fromIndex: 53507,
+          toIndex: 58705,
+        },
+        {
+          fromIndex: 58723,
+          toIndex: 64093,
+        },
+      ]);
+    }
+  });
+  it("should hash provider params consistently", () => {
+    const params: ProviderParams<"http"> = {
+      url: "https://xargs.org/",
+      responseMatches: [
+        {
+          type: "regex",
+          value: "<title.*?(?<name>Aiken &amp; Driscoll &amp; Webb)<\\/title>",
+        },
+      ],
+      method: "GET",
+      responseRedactions: [{ xPath: "./html/head/title" }],
+      geoLocation: "US",
+    };
+    const hash = hashProviderParams(params);
+    expect(hash).toEqual(
+      "0x98fde00dc9f1d88c5166c3b7c911957d52e8f57ea1143ec92aebf529c1e3acd3"
+    );
 
-	})
+    const paramsEx: ProviderParams<"http"> = {
+      geoLocation: "",
+      url: "https://www.linkedin.com/dashboard/",
+      method: "GET",
+      body: "",
+      responseMatches: [
+        {
+          value:
+            "TOTAL_FOLLOWERS&quot;,&quot;$recipeTypes&quot;:[&quot;com.linkedin.c123aee2ba3dfeb6a4580e7effdf5d3f&quot;],&quot;analyticsTitle&quot;:{&quot;textDirection&quot;:&quot;USER_LOCALE&quot;,&quot;text&quot;:&quot;581&quot;",
+          type: "contains",
+        },
+      ],
+      responseRedactions: [
+        {
+          xPath: "{{xpath}}",
+          jsonPath: "",
+          regex:
+            "TOTAL_FOLLOWERS&quot;,&quot;\\$recipeTypes&quot;:(.*?),&quot;analyticsTitle&quot;:{&quot;textDirection&quot;:&quot;USER_LOCALE&quot;,&quot;text&quot;:&quot;(.*?)&quot;",
+        },
+      ],
+    };
+    expect(hashProviderParams(paramsEx)).toEqual(
+      "0xeb0f5b38811b973221eb202ac60abeb41e7808034d5eb56117a367af545127c8"
+    );
+  });
 
-	it('should perform complex redactions 3', () => {
-		const provider = httpProvider
-		const response = Buffer.from('HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 222\r\nConnection: close\r\n\r\n<body> <div id="c1">{"ages":[{"age":"26"},{"age":"27"},{"age":"28"}]}</div> <div id="c2">{"ages":[{"age":"27"},{"age":"28"},{"age":"29"}]}</div> <div id="c3">{"ages":[{"age":"29"},{"age":"30"},{"age":"31"}]}</div></body>\r\n')
+  it("should match redacted strings", () => {
+    const testCases: { a: string; b: string }[] = [
+      {
+        a: "aaa",
+        b: "aaa",
+      },
+      {
+        a: "{{abc}}",
+        b: "************",
+      },
+      {
+        a: "{{abc}}d",
+        b: "*d",
+      },
+      {
+        a: "d{{abc}}",
+        b: "d*******************************************",
+      },
+      {
+        a: "d{{abc}}d{{abwewewewec}}",
+        b: "d*d*",
+      },
+      {
+        a: "{{abc}}x{{abwewewewec}}",
+        b: "*x*",
+      },
+    ];
 
-		if(provider.getResponseRedactions) {
-			const redactions = provider.getResponseRedactions(response, {
-				method: 'GET',
-				url: 'https://test.com',
-				'responseMatches': [],
-				'responseRedactions': [
-					{
-						'xPath': '//body/div',
-						'regex': '"age":"\\d{2}"'
-					}
-				],
-			})
-			expect(redactions).toEqual([
-				{
-					'fromIndex': 15,
-					'toIndex': 115
-				},
-				{
-					'fromIndex': 125,
-					'toIndex': 184
-				},
-				{
-					'fromIndex': 194,
-					'toIndex': 253
-				},
-				{
-					'fromIndex': 263,
-					'toIndex': 307
-				}
-			])
+    for (const { a, b } of testCases) {
+      expect(
+        matchRedactedStrings(strToUint8Array(a), strToUint8Array(b))
+      ).toBeTruthy();
+    }
+  });
 
-			let start = 0
-			let str = ''
-			for(const red of redactions) {
-				str += response.subarray(start, red.fromIndex)
-				start = red.toIndex
-			}
+  it("should not match bad redacted strings", () => {
+    const testCases: { a: string; b: string }[] = [
+      {
+        a: "aaa",
+        b: "aab",
+      },
+      {
+        a: "{{abc}}",
+        b: "",
+      },
+      {
+        a: "",
+        b: "*****",
+      },
+      {
+        a: "{{abc}}{{abc}}d",
+        b: "*d",
+      },
+      {
+        a: "{{yy",
+        b: "*",
+      },
+      {
+        a: "{{abc}}d{{abwewewewec}}",
+        b: "a*d*",
+      },
+      {
+        a: "{abc}}",
+        b: "************",
+      },
+    ];
 
-			expect(str).toEqual('HTTP/1.1 200 OK"age":"26""age":"27""age":"29"')
-		}
-	})
+    for (const { a, b } of testCases) {
+      expect(
+        matchRedactedStrings(strToUint8Array(a), strToUint8Array(b))
+      ).toBeFalsy();
+    }
+  });
 
-	it('should get redactions from chunked response', () => {
-		const provider = httpProvider
-		if(provider.getResponseRedactions) {
-			const redactions = provider.getResponseRedactions(chunkedResp, {
-				method: 'GET',
-				url: 'https://bookface.ycombinator.com/home',
-				'responseMatches': [
+  it("should throw on invalid URL", () => {
+    expect(() =>
+      getProviderValue(
+        {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [],
+          method: "GET",
+        },
+        hostPort
+      )
+    ).toThrow("Invalid URL");
+  });
 
-				],
-				'responseRedactions': [
-					{
-						'xPath': "//script[@id='js-react-on-rails-context']",
-						'jsonPath': '$.currentUser',
-					},
-					{
-						'xPath': "//script[@data-component-name='BookfaceCsrApp']",
-						'jsonPath': '$.hasBookface',
-					},
-					{
-						'regex': 'code_version:\\s"[0-9a-f]{40}\\sruby'
-					}
-				],
-			})
-			expect(redactions).toEqual([
-				{
-					'fromIndex': 15,
-					'toIndex': 17
-				},
-				{
-					'fromIndex': 52,
-					'toIndex': 4760
-				},
-				{
-					'fromIndex': 4820,
-					'toIndex': 53268
-				},
-				{
-					'fromIndex': 53507,
-					'toIndex': 58705
-				},
-				{
-					'fromIndex': 58723,
-					'toIndex': 64093
-				}
-			])
-		}
+  it("should throw on invalid params", () => {
+    expect(() => {
+      assertValidateProviderParams("http", { a: "b", body: 2 });
+    }).toThrow(/^Params validation failed/);
+  });
 
-	})
-	it('should hash provider params consistently', () => {
-		const params: ProviderParams<'http'> = {
-			url: 'https://xargs.org/',
-			responseMatches: [
-				{
-					type: 'regex',
-					value: '<title.*?(?<name>Aiken &amp; Driscoll &amp; Webb)<\\/title>'
-				}
-			],
-			method: 'GET',
-			responseRedactions: [{ xPath: './html/head/title' }],
-			geoLocation: 'US',
-		}
-		const hash = hashProviderParams(params)
-		expect(hash).toEqual('0x98fde00dc9f1d88c5166c3b7c911957d52e8f57ea1143ec92aebf529c1e3acd3')
+  it("should throw on invalid secret params", () => {
+    expect(() => {
+      createRequest(
+        {
+          cookieStr: undefined,
+          authorisationHeader: undefined,
+          headers: undefined,
+        },
+        {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [],
+          method: "GET",
+        }
+      );
+    }).toThrow("auth parameters are not set");
+  });
 
-
-		const paramsEx: ProviderParams<'http'> = {
-			'geoLocation': '',
-			'url': 'https://www.linkedin.com/dashboard/',
-			'method': 'GET',
-			'body': '',
-			'responseMatches': [
-				{
-					'value': 'TOTAL_FOLLOWERS&quot;,&quot;$recipeTypes&quot;:[&quot;com.linkedin.c123aee2ba3dfeb6a4580e7effdf5d3f&quot;],&quot;analyticsTitle&quot;:{&quot;textDirection&quot;:&quot;USER_LOCALE&quot;,&quot;text&quot;:&quot;581&quot;',
-					'type': 'contains'
-				}],
-			'responseRedactions': [{
-				'xPath': '{{xpath}}',
-				'jsonPath': '',
-				'regex': 'TOTAL_FOLLOWERS&quot;,&quot;\\$recipeTypes&quot;:(.*?),&quot;analyticsTitle&quot;:{&quot;textDirection&quot;:&quot;USER_LOCALE&quot;,&quot;text&quot;:&quot;(.*?)&quot;'
-			}]
-		}
-		expect(hashProviderParams(paramsEx)).toEqual('0xeb0f5b38811b973221eb202ac60abeb41e7808034d5eb56117a367af545127c8')
-	})
-
-	it('should match redacted strings', () => {
-		const testCases: { a: string, b: string }[] = [
-			{
-				a: 'aaa',
-				b: 'aaa'
-			},
-			{
-				a: '{{abc}}',
-				b: '************'
-			},
-			{
-				a: '{{abc}}d',
-				b: '*d'
-			},
-			{
-				a: 'd{{abc}}',
-				b: 'd*******************************************'
-			},
-			{
-				a: 'd{{abc}}d{{abwewewewec}}',
-				b: 'd*d*'
-			},
-			{
-				a: '{{abc}}x{{abwewewewec}}',
-				b: '*x*'
-			}
-		]
-
-		for(const { a, b } of testCases) {
-			expect(matchRedactedStrings(strToUint8Array(a), strToUint8Array(b))).toBeTruthy()
-		}
-	})
-
-	it('should not match bad redacted strings', () => {
-		const testCases: { a: string, b: string }[] = [
-			{
-				a: 'aaa',
-				b: 'aab'
-			},
-			{
-				a: '{{abc}}',
-				b: ''
-			},
-			{
-				a: '',
-				b: '*****'
-			},
-			{
-				a: '{{abc}}{{abc}}d',
-				b: '*d'
-			},
-			{
-				a: '{{yy',
-				b: '*'
-			},
-			{
-				a: '{{abc}}d{{abwewewewec}}',
-				b: 'a*d*'
-			},
-			{
-				a: '{abc}}',
-				b: '************'
-			}
-		]
-
-		for(const { a, b } of testCases) {
-			expect(matchRedactedStrings(strToUint8Array(a), strToUint8Array(b))).toBeFalsy()
-		}
-	})
-
-
-	it('should throw on invalid URL', () => {
-		expect(
-			() => (
-				getProviderValue(
-					{
-						url: 'abc',
-						responseMatches: [],
-						responseRedactions: [],
-						method: 'GET'
-					},
-					hostPort
-				)
-			)
-		).toThrow('Invalid URL')
-	})
-
-	it('should throw on invalid params', () => {
-		expect(() => {
-			assertValidateProviderParams('http', { a: 'b', body: 2 })
-		}).toThrow(/^Params validation failed/)
-	})
-
-	it('should throw on invalid secret params', () => {
-		expect(() => {
-			createRequest({
-				cookieStr: undefined,
-				authorisationHeader: undefined,
-				headers: undefined
-			}, {
-				url: 'abc',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('auth parameters are not set')
-	})
-
-	it('should return empty redactions', () => {
-		const res =
-            `HTTP/1.1 200 OK\r
+  it("should return empty redactions", () => {
+    const res = `HTTP/1.1 200 OK\r
 Content-Length: 0\r
 Connection: close\r
 Content-Type: text/html; charset=utf-8\r
 \r
-`
-		const redactions = (getResponseRedactions) ?
-			getResponseRedactions(strToUint8Array(res), {
-				url: 'abc',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-			: undefined
-		expect(redactions).toHaveLength(0)
-	})
+`;
+    const redactions = getResponseRedactions
+      ? getResponseRedactions(strToUint8Array(res), {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [],
+          method: "GET",
+        })
+      : undefined;
+    expect(redactions).toHaveLength(0);
+  });
 
-	it('should throw on empty body', () => {
-		const res =
-            `HTTP/1.1 200 OK\r
+  it("should throw on empty body", () => {
+    const res = `HTTP/1.1 200 OK\r
 Content-Length: 0\r
 Connection: close\r
 Content-Type: text/html; charset=utf-8\r
 \r
-`
-		expect(() => {
-			if(getResponseRedactions) {
-				getResponseRedactions(strToUint8Array(res), {
-					url: 'abc',
-					responseMatches: [],
-					responseRedactions: [{
-						regex: 'abc'
-					}],
-					method: 'GET'
-				})
-			}
-		}).toThrow('Failed to find response body')
-	})
+`;
+    expect(() => {
+      if (getResponseRedactions) {
+        getResponseRedactions(strToUint8Array(res), {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [
+            {
+              regex: "abc",
+            },
+          ],
+          method: "GET",
+        });
+      }
+    }).toThrow("Failed to find response body");
+  });
 
-	it('should throw on bad xpath', () => {
-		const res =
-            `HTTP/1.1 200 OK\r
+  it("should throw on bad xpath", () => {
+    const res = `HTTP/1.1 200 OK\r
 Content-Length: 1\r
 Connection: close\r
 Content-Type: text/html; charset=utf-8\r
 \r
-1`
-		expect(() => {
-			if(getResponseRedactions) {
-				getResponseRedactions(strToUint8Array(res), {
-					url: 'abc',
-					responseMatches: [],
-					responseRedactions: [{
-						xPath: 'abc'
-					}],
-					method: 'GET'
-				})
-			}
-		}).toThrow('Failed to find XPath: \"abc\"')
-	})
+1`;
+    expect(() => {
+      if (getResponseRedactions) {
+        getResponseRedactions(strToUint8Array(res), {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [
+            {
+              xPath: "abc",
+            },
+          ],
+          method: "GET",
+        });
+      }
+    }).toThrow('Failed to find XPath: "abc"');
+  });
 
-	it('should throw on bad jsonPath', () => {
-		const res =
-            `HTTP/1.1 200 OK\r
+  it("should throw on bad jsonPath", () => {
+    const res = `HTTP/1.1 200 OK\r
 Content-Length: 1\r
 Connection: close\r
 Content-Type: text/html; charset=utf-8\r
 \r
-1`
-		expect(() => {
-			if(getResponseRedactions) {
-				getResponseRedactions(strToUint8Array(res), {
-					url: 'abc',
-					responseMatches: [],
-					responseRedactions: [{
-						jsonPath: 'abc'
-					}],
-					method: 'GET'
-				})
-			}
-		}).toThrow('jsonPath not found')
-	})
+1`;
+    expect(() => {
+      if (getResponseRedactions) {
+        getResponseRedactions(strToUint8Array(res), {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [
+            {
+              jsonPath: "abc",
+            },
+          ],
+          method: "GET",
+        });
+      }
+    }).toThrow("jsonPath not found");
+  });
 
-	it('should throw on bad regex', () => {
-		const res =
-            `HTTP/1.1 200 OK\r
+  it("should throw on bad regex", () => {
+    const res = `HTTP/1.1 200 OK\r
 Content-Length: 1\r
 Connection: close\r
 Content-Type: text/html; charset=utf-8\r
 \r
-1`
-		expect(() => {
-			if(getResponseRedactions) {
-				getResponseRedactions(strToUint8Array(res), {
-					url: 'abc',
-					responseMatches: [],
-					responseRedactions: [{
-						regex: 'abc'
-					}],
-					method: 'GET'
-				})
-			}
-		}).toThrow('regexp abc does not match found element \'1\'')
-	})
+1`;
+    expect(() => {
+      if (getResponseRedactions) {
+        getResponseRedactions(strToUint8Array(res), {
+          url: "abc",
+          responseMatches: [],
+          responseRedactions: [
+            {
+              regex: "abc",
+            },
+          ],
+          method: "GET",
+        });
+      }
+    }).toThrow("regexp abc does not match found element '1'");
+  });
 
-	it('should throw on bad method', () => {
+  it("should throw on bad method", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "abc",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "POST",
+      });
+    }).toThrow("Invalid method: get");
+  });
 
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'abc',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'POST'
-			})
-		}).toThrow('Invalid method: get')
-	})
+  it("should throw on bad protocol", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "http://xargs.com",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow("Expected protocol: https, found: http:");
+  });
 
-	it('should throw on bad protocol', () => {
+  it("should throw on duplicate groups", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://xargs.{{abc}}",
+        responseMatches: [
+          {
+            type: "regex",
+            value: "(?<abc>.)",
+          },
+        ],
+        responseRedactions: [],
+        method: "GET",
+        paramValues: {
+          abc: "org",
+        },
+      });
+    }).toThrow("Duplicate parameter abc");
+  });
 
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'http://xargs.com',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('Expected protocol: https, found: http:')
-	})
+  it("should throw on bad path", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://xargs.com/abc",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow("Expected path: /abc, found: /");
+  });
 
-	it('should throw on duplicate groups', () => {
+  it("should throw on bad host", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://abc.com/",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow("Expected host: abc.com, found: xargs.org");
+  });
 
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://xargs.{{abc}}',
-				responseMatches: [{
-					type: 'regex',
-					value: '(?<abc>.)'
-				}],
-				responseRedactions: [],
-				method: 'GET',
-				paramValues: {
-					'abc': 'org'
-				}
-			})
-		}).toThrow('Duplicate parameter abc')
-	})
+  it("should throw on bad OK string", () => {
+    const temp = cloneObject(transcript);
+    // changes the status ("OK") text to something else
+    // it'll be in the first server response packet
+    const firstServerMsg = temp.find(
+      (x, index) => x.sender === "server" && index !== 0
+    )!;
+    firstServerMsg.message[0] = 32;
+    expect(() => {
+      assertValidProviderReceipt(temp, {
+        url: "https://xargs.org/",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow('Response did not start with "HTTP/1.1 200"');
+  });
 
-	it('should throw on bad path', () => {
+  it("should throw on bad close header", () => {
+    const temp = cloneObject(transcript);
+    const clientMsgWithClose = temp.find((x) => {
+      if (x.sender !== "client") {
+        return false;
+      }
 
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://xargs.com/abc',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('Expected path: /abc, found: /')
-	})
+      return uint8ArrayToStr(x.message).includes("Connection: close");
+    })!;
+    clientMsgWithClose.message[68] = 102;
+    expect(() => {
+      assertValidProviderReceipt(temp, {
+        url: "https://xargs.org/",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow('Connection header must be "close"');
+  });
 
-	it('should throw on bad host', () => {
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://abc.com/',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('Expected host: abc.com, found: xargs.org')
-	})
+  it("should throw on bad body", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://xargs.org/",
+        responseMatches: [],
+        responseRedactions: [],
+        method: "GET",
+        body: "abc",
+      });
+    }).toThrow("request body mismatch");
+  });
 
-	it('should throw on bad OK string', () => {
-		const temp = cloneObject(transcript)
-		// changes the status ("OK") text to something else
-		// it'll be in the first server response packet
-		const firstServerMsg = temp.find((x, index) => x.sender === 'server' && index !== 0)!
-		firstServerMsg.message[0] = 32
-		expect(() => {
-			assertValidProviderReceipt(temp, {
-				url: 'https://xargs.org/',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('Response did not start with \"HTTP/1.1 200\"')
-	})
+  it("should throw on bad regex match", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://xargs.org/",
+        responseMatches: [
+          {
+            type: "regex",
+            value: "abc",
+          },
+        ],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow('Invalid receipt. Regex "abc" didn\'t match');
+  });
 
-	it('should throw on bad close header', () => {
-		const temp = cloneObject(transcript)
-		const clientMsgWithClose = temp.find((x) => {
-			if(x.sender !== 'client') {
-				return false
-			}
+  it("should throw on bad contains match", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://xargs.org/",
+        responseMatches: [
+          {
+            type: "contains",
+            value: "abc",
+          },
+        ],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow('Invalid receipt. Response does not contain "abc"');
+  });
 
-			return uint8ArrayToStr(x.message)
-				.includes('Connection: close')
-		})!
-		clientMsgWithClose.message[68] = 102
-		expect(() => {
-			assertValidProviderReceipt(temp, {
-				url: 'https://xargs.org/',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('Connection header must be \"close\"')
-	})
+  it("should get geo", () => {
+    const geo = getProviderValue(
+      {
+        geoLocation: "{{geo}}",
+        paramValues: {
+          geo: "US",
+        },
+      } as unknown as ProviderParams<"http">,
+      geoLocation
+    );
+    expect(geo).toEqual("US");
+  });
 
-	it('should throw on bad body', () => {
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://xargs.org/',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET',
-				body: 'abc'
-			})
-		}).toThrow('request body mismatch')
-	})
+  it("should throw on bad geo param", () => {
+    expect(() => {
+      // @ts-ignore
+      geoLocation({
+        geoLocation: "{{geo}}",
+        paramValues: {
+          geo1: "US",
+        },
+      });
+    }).toThrow('parameter "geo" value not found in templateParams');
+  });
 
-	it('should throw on bad regex match', () => {
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://xargs.org/',
-				responseMatches: [{
-					type: 'regex',
-					value: 'abc'
-				}],
-				responseRedactions: [],
-				method: 'GET',
-			})
-		}).toThrow('Invalid receipt. Regex \"abc\" didn\'t match')
-	})
+  it("should return empty geo", () => {
+    expect(
+      // @ts-ignore
+      geoLocation({
+        geoLocation: "",
+      })
+    ).toEqual(undefined);
+  });
 
-	it('should throw on bad contains match', () => {
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://xargs.org/',
-				responseMatches: [{
-					type: 'contains',
-					value: 'abc'
-				}],
-				responseRedactions: [],
-				method: 'GET',
-			})
-		}).toThrow('Invalid receipt. Response does not contain \"abc\"')
-	})
+  it("should throw on bad param in url", () => {
+    expect(() => {
+      // @ts-ignore
+      return hostPort({
+        url: "https://xargs.{{param1}}",
+      });
+    }).toThrow('parameter "param1" value not found in templateParams');
+  });
 
-	it('should get geo', () => {
-		const geo = getProviderValue(
-			{
-				geoLocation: '{{geo}}',
-				paramValues: {
-					'geo': 'US'
-				}
-			} as unknown as ProviderParams<'http'>,
-			geoLocation
-		)
-		expect(geo).toEqual('US')
-	})
+  it("should throw on bad url", () => {
+    expect(() => {
+      // @ts-ignore
+      hostPort({
+        url: "file:///C:/path",
+      });
+    }).toThrow("url is incorrect");
+  });
 
-	it('should throw on bad geo param', () => {
+  it("should throw on bad match type", () => {
+    expect(() => {
+      const params = {
+        url: "https://xargs.org/",
+        responseMatches: [
+          {
+            type: "abc",
+            value: "abc",
+          },
+        ],
+        responseRedactions: [],
+        method: "GET",
+      };
+      // @ts-ignore
+      assertValidProviderReceipt(transcript, params);
+    }).toThrow("Invalid response match type abc");
+  });
 
-		expect(() => {
-			// @ts-ignore
-			geoLocation({
-				geoLocation: '{{geo}}',
-				paramValues: {
-					'geo1': 'US'
-				}
-			})
-		}).toThrow('parameter "geo" value not found in templateParams')
-	})
+  it("should throw on no non present params", () => {
+    expect(() => {
+      assertValidProviderReceipt(transcript, {
+        url: "https://xargs.{{org}}/",
+        responseMatches: [
+          {
+            type: "contains",
+            value: "abc",
+          },
+        ],
+        responseRedactions: [],
+        method: "GET",
+      });
+    }).toThrow('parameter\'s "org" value not found in paramValues');
+  });
 
-	it('should return empty geo', () => {
+  it("should throw on non present secret params", () => {
+    expect(() => {
+      createRequest(
+        {
+          cookieStr: "abc",
+        },
+        {
+          url: "https://xargs.{{com}}",
+          responseMatches: [],
+          responseRedactions: [],
+          method: "GET",
+        }
+      );
+    }).toThrow(
+      "parameter's \"com\" value not found in paramValues and secret parameter's paramValues"
+    );
+  });
 
-		expect(// @ts-ignore
-			geoLocation({
-				geoLocation: '',
-			})).toEqual(undefined)
-	})
+  it("should replace params in body correctly", () => {
+    const params: ProviderParams<"http"> = {
+      url: "https://example.{{param1}}/",
+      method: "GET",
+      body: "hello {{h}} {{b}} {{h1h1h1h1h1h1h1}} {{h2}} {{a}} {{h1h1h1h1h1h1h1}} {{h}} {{a}} {{h2}} {{a}} {{b}} world",
+      geoLocation: "US",
+      responseMatches: [
+        {
+          type: "regex",
+          value: "<title.*?(?<domain>{{param2}} Domain)<\\/title>",
+        },
+      ],
+      responseRedactions: [
+        {
+          xPath: "./html/head/{{param3}}",
+        },
+        {
+          xPath: "/html/body/div/p[1]/text()",
+        },
+      ],
+      paramValues: {
+        param1: "com",
+        param2: "Example",
+        param3: "title",
+        what: "illustrative",
+        a: "{{b}}",
+        b: "aaaaa",
+      },
+      headers: {
+        "user-agent": "Mozilla/5.0",
+      },
+    };
+    const secretParams = {
+      cookieStr: "<cookie-str>",
+      paramValues: {
+        h: "crazy",
+        h1h1h1h1h1h1h1: "crazy1",
+        h2: "crazy2",
+      },
+      authorisationHeader: "abc",
+    };
+    const req = createRequest(secretParams, params);
 
-	it('should throw on bad param in url', () => {
+    const reqText = uint8ArrayToStr(req.data as Uint8Array);
+    expect(reqText).toContain(
+      "hello crazy aaaaa crazy1 crazy2 {{b}} crazy1 crazy {{b}} crazy2 {{b}} aaaaa world"
+    );
+    expect(req.redactions.length).toEqual(7);
+    expect(getRedaction(0)).toEqual(
+      "Cookie: <cookie-str>\r\nAuthorization: abc"
+    );
+    expect(getRedaction(1)).toEqual("crazy");
+    expect(getRedaction(2)).toEqual("crazy1");
+    expect(getRedaction(3)).toEqual("crazy2");
+    expect(getRedaction(4)).toEqual("crazy1");
+    expect(getRedaction(5)).toEqual("crazy");
+    expect(getRedaction(6)).toEqual("crazy2");
 
-		expect(() => {
-			// @ts-ignore
-			return hostPort(
-				{
-					url: 'https://xargs.{{param1}}'
-				})
-		})
-			.toThrow('parameter "param1" value not found in templateParams')
-	})
+    function getRedaction(index: number) {
+      return uint8ArrayToStr(
+        (req.data as Uint8Array).slice(
+          req.redactions[index].fromIndex,
+          req.redactions[index].toIndex
+        )
+      );
+    }
+  });
 
-	it('should throw on bad url', () => {
+  it("should replace params in body correctly case 2", () => {
+    const params: ProviderParams<"http"> = {
+      body: '{"includeGroups":{{REQ_DAT}},"includeLogins":{{REQ_SECRET}},"includeVerificationStatus":false}',
+      geoLocation: "",
+      method: "POST",
+      paramValues: {
+        REQ_DAT: "false",
+        username: "testyreclaim",
+      },
+      responseMatches: [
+        {
+          type: "contains",
+          value: '"userName":"{{username}}"',
+        },
+      ],
+      responseRedactions: [
+        {
+          jsonPath: "$.userName",
+          regex: '"userName":"(.*)"',
+          xPath: "",
+        },
+      ],
+      url: "https://www.kaggle.com",
+    };
+    const secretParams = {
+      paramValues: {
+        REQ_SECRET: "false",
+      },
+      authorisationHeader: "abc",
+    };
 
-		expect(() => {
-			// @ts-ignore
-			hostPort(
-				{
-					url: 'file:///C:/path'
-				})
-		})
-			.toThrow('url is incorrect')
-	})
+    const req = createRequest(secretParams, params);
 
-	it('should throw on bad match type', () => {
-		expect(() => {
-			const params = {
-				url: 'https://xargs.org/',
-				responseMatches: [{
-					type: 'abc',
-					value: 'abc'
-				}],
-				responseRedactions: [],
-				method: 'GET',
-			}
-			// @ts-ignore
-			assertValidProviderReceipt(transcript, params)
-		}).toThrow('Invalid response match type abc')
-	})
+    const reqText = uint8ArrayToStr(req.data as Uint8Array);
+    expect(reqText).toContain(
+      '{"includeGroups":false,"includeLogins":false,"includeVerificationStatus":false}'
+    );
+    expect(req.redactions.length).toEqual(2);
+    expect(getRedaction(0)).toEqual("Authorization: abc");
+    expect(getRedaction(1)).toEqual("false");
 
-	it('should throw on no non present params', () => {
-		expect(() => {
-			assertValidProviderReceipt(transcript, {
-				url: 'https://xargs.{{org}}/',
-				responseMatches: [{
-					type: 'contains',
-					value: 'abc'
-				}],
-				responseRedactions: [],
-				method: 'GET',
-			})
-		}).toThrow('parameter\'s \"org\" value not found in paramValues')
-	})
-
-	it('should throw on non present secret params', () => {
-		expect(() => {
-			createRequest({
-				cookieStr: 'abc',
-
-			}, {
-				url: 'https://xargs.{{com}}',
-				responseMatches: [],
-				responseRedactions: [],
-				method: 'GET'
-			})
-		}).toThrow('parameter\'s \"com\" value not found in paramValues and secret parameter\'s paramValues')
-	})
-
-	it('should replace params in body correctly', () => {
-		const params: ProviderParams<'http'> = {
-			url: 'https://example.{{param1}}/',
-			method: 'GET',
-			body: 'hello {{h}} {{b}} {{h1h1h1h1h1h1h1}} {{h2}} {{a}} {{h1h1h1h1h1h1h1}} {{h}} {{a}} {{h2}} {{a}} {{b}} world',
-			geoLocation: 'US',
-			responseMatches: [{
-				type: 'regex',
-				value: '<title.*?(?<domain>{{param2}} Domain)<\\/title>',
-			}],
-			responseRedactions: [{
-				xPath: './html/head/{{param3}}',
-			}, {
-				xPath: '/html/body/div/p[1]/text()'
-			}],
-			paramValues: {
-				param1: 'com',
-				param2: 'Example',
-				param3: 'title',
-				what: 'illustrative',
-				a:'{{b}}',
-				b:'aaaaa'
-			},
-			headers: {
-				'user-agent': 'Mozilla/5.0',
-			}
-		}
-		const secretParams = {
-			cookieStr: '<cookie-str>',
-			paramValues: {
-				h: 'crazy',
-				h1h1h1h1h1h1h1: 'crazy1',
-				h2: 'crazy2',
-			},
-			authorisationHeader: 'abc'
-		}
-		const req = createRequest(secretParams, params)
-
-		const reqText = uint8ArrayToStr(req.data as Uint8Array)
-		expect(reqText).toContain('hello crazy aaaaa crazy1 crazy2 {{b}} crazy1 crazy {{b}} crazy2 {{b}} aaaaa world')
-		expect(req.redactions.length).toEqual(7)
-		expect(getRedaction(0)).toEqual('Cookie: <cookie-str>\r\nAuthorization: abc')
-		expect(getRedaction(1)).toEqual('crazy')
-		expect(getRedaction(2)).toEqual('crazy1')
-		expect(getRedaction(3)).toEqual('crazy2')
-		expect(getRedaction(4)).toEqual('crazy1')
-		expect(getRedaction(5)).toEqual('crazy')
-		expect(getRedaction(6)).toEqual('crazy2')
-
-		function getRedaction(index: number) {
-			return uint8ArrayToStr((req.data as Uint8Array).slice(req.redactions[index].fromIndex, req.redactions[index].toIndex))
-		}
-	})
-
-	it('should replace params in body correctly case 2', () => {
-		const params: ProviderParams<'http'> = {
-			'body': '{"includeGroups":{{REQ_DAT}},"includeLogins":{{REQ_SECRET}},"includeVerificationStatus":false}',
-			'geoLocation': '',
-			'method': 'POST',
-			'paramValues': {
-				'REQ_DAT': 'false',
-				'username': 'testyreclaim'
-			},
-			'responseMatches': [
-				{
-					'type': 'contains',
-					'value': '"userName":"{{username}}"'
-				}
-			],
-			'responseRedactions': [
-				{
-					'jsonPath': '$.userName',
-					'regex': '"userName":"(.*)"',
-					'xPath': ''
-				}
-			],
-			'url': 'https://www.kaggle.com'
-		}
-		const secretParams = {
-			'paramValues': {
-				'REQ_SECRET': 'false'
-			},
-			authorisationHeader: 'abc'
-		}
-
-		const req = createRequest(secretParams, params)
-
-		const reqText = uint8ArrayToStr(req.data as Uint8Array)
-		expect(reqText).toContain('{\"includeGroups\":false,\"includeLogins\":false,\"includeVerificationStatus\":false}')
-		expect(req.redactions.length).toEqual(2)
-		expect(getRedaction(0)).toEqual('Authorization: abc')
-		expect(getRedaction(1)).toEqual('false')
-
-		function getRedaction(index: number) {
-			return uint8ArrayToStr((req.data as Uint8Array).slice(req.redactions[index].fromIndex, req.redactions[index].toIndex))
-		}
-	})
-})
+    function getRedaction(index: number) {
+      return uint8ArrayToStr(
+        (req.data as Uint8Array).slice(
+          req.redactions[index].fromIndex,
+          req.redactions[index].toIndex
+        )
+      );
+    }
+  });
+});
 
 function cloneObject<T>(obj: T): T {
-	// use node serialization to clone object
-	// to allow binary data to be cloned
-	return deserialize(serialize(obj))
+  // use node serialization to clone object
+  // to allow binary data to be cloned
+  return deserialize(serialize(obj));
 }
 
 const html = `
@@ -1033,7 +1100,6 @@ const html = `
   // End Rollbar Snippet</script><script>window.AlgoliaOpts = {"key":"OWE1NzQ0MzgzYjY0NGI0OGEyMzljZDZlY2VjODUzZDcwOWZjNzljYTUxY2JiMzVjNjFlZGYxYzIxZWY0NDc1ZHRhZ0ZpbHRlcnM9JTVCJTVCJTIycHVibGljJTIyJTJDJTIyYmF0Y2hfdzIwMjElMjIlMkMlMjJib29rZmFjZV9jaGFubmVsX2NsYXNzaWZpZWRzJTIyJTJDJTIyYm9va2ZhY2VfY2hhbm5lbF9sYXVuY2hfYm9va2ZhY2UlMjIlMkMlMjJib29rZmFjZV9jaGFubmVsX3JlY3J1aXRpbmclMjIlMkMlMjJib29rZmFjZV9jaGFubmVsX2dlbmVyYWwlMjIlMkMlMjJib29rZmFjZV9jaGFubmVsX3cyMDIxXzMlMjIlMkMlMjJib29rZmFjZV9jaGFubmVsX3cyMDIxJTIyJTJDJTIyYm9va2ZhY2VfY2hhbm5lbF9hbm5vdW5jZW1lbnRzJTIyJTJDJTIyYm9va2ZhY2VfY2hhbm5lbF9mZWF0dXJlZCUyMiUyQyUyMmJvb2tmYWNlX2NoYW5uZWxfYWxsJTIyJTJDJTIyYWN0aXZlX2ZvdW5kZXJzJTIyJTJDJTIyZGRheV9iYXRjaF93MjAyMyUyMiUyQyUyMmFsbF9mb3VuZGVycyUyMiUyQyUyMndhYXNfYWNjZXNzJTIyJTJDJTIyZnVuZHJhaXNpbmclMjIlMkMlMjJkZWFscyUzQWF1ZGllbmNlJTNBYWxsX2ZvdW5kZXJzJTIyJTJDJTIyZGVhbHMlM0FhdWRpZW5jZSUzQWFjdGl2ZV9mb3VuZGVycyUyMiUyQyUyMmRlYWxzJTNBb3duZWRfYnlfdXNlciUzQTE4Mjg1MyUyMiUyQyUyMmRlYWxzJTNBb3duZWRfYnlfY29tcGFueSUzQTIzMTA1JTIyJTVEJTVEJnVzZXJUb2tlbj0xSjBVbnA3cWZuZWN5NVR6Y2w1YVpycXB4VDljVUZxM2JiVU0yeUlDJTJCTjAlM0QmYW5hbHl0aWNzVGFncz0lNUIlNUIlMjJib29rZmFjZSUyMiUyQyUyMmFsdW1uaSUyMiUyQyUyMmFjdGl2ZSUyMiU1RCU1RA==","app":"45BWZJ1SGC","tag_filters":"(public,batch_w2021,bookface_channel_classifieds,bookface_channel_launch_bookface,bookface_channel_recruiting,bookface_channel_general,bookface_channel_w2021_3,bookface_channel_w2021,bookface_channel_announcements,bookface_channel_featured,bookface_channel_all,active_founders,dday_batch_w2023,all_founders,waas_access,fundraising,deals:audience:all_founders,deals:audience:active_founders,deals:owned_by_user:182853,deals:owned_by_company:23105)"};</script><meta name="csrf-param" content="authenticity_token" />
   <meta name="csrf-token" content="V4opQ8owGbameRXSOV-tI7DNGnvOjer5dD4dMPzKJXyNHX2QiZyt9C7pmHCk2RQVi_lF8t8oTyOuxOVSwXV5Iw" /><link href="/assets/favicon-402519a37fed7880aea64ce37c210cd32c33be9b468fb2668ffcd6faec51260d.ico" rel="icon" type="image/x-icon" /><link href="/assets/favicon-402519a37fed7880aea64ce37c210cd32c33be9b468fb2668ffcd6faec51260d.ico" rel="shortcut icon" type="image/x-icon" /><link href="/manifest.json" rel="manifest" /><link href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" /><link href="//cdnjs.cloudflare.com/ajax/libs/ionicons/3.0.0/css/ionicons.min.css" rel="stylesheet" /><link href="https://bookface.ycombinator.com/search/opensearch?token=ea742fc7-3bc3-4c59-8e71-80983227a57f" rel="search" title="Bookface" type="application/opensearchdescription+xml" /><meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport" /><meta charset="utf-8" />
   <script type="text/javascript">window.NREUM||(NREUM={});NREUM.info={"beacon":"bam.nr-data.net","errorBeacon":"bam.nr-data.net","licenseKey":"f604a527b0","applicationID":"97963418","transactionName":"cg0NQhFeVVgAExdeV1wHTF8NVVxM","queueTime":0,"applicationTime":262,"agent":""}</script>
-  <script type="text/javascript">(window.NREUM||(NREUM={})).init={ajax:{deny_list:["bam.nr-data.net"]}};(window.NREUM||(NREUM={})).loader_config={licenseKey:"f604a527b0",applicationID:"97963418"};;(()=>{var e,t,r={8768:(e,t,r)=>{"use strict";r.d(t,{T:()=>n,p:()=>i});const n=/(iPad|iPhone|iPod)/g.test(navigator.userAgent),i=n&&Boolean("undefined"==typeof SharedWorker)},27:(e,t,r)=>{"use strict";r.d(t,{P_:()=>h,Mt:()=>v,C5:()=>d,DL:()=>y,OP:()=>O,lF:()=>R,Yu:()=>A,Dg:()=>p,CX:()=>f,GE:()=>w,sU:()=>C});var n={};r.r(n),r.d(n,{agent:()=>x,match:()=>k,version:()=>j});var i=r(6797),o=r(909),a=r(8610);class s{constructor(e,t){try{if(!e||"object"!=typeof e)return(0,a.Z)("New setting a Configurable requires an object as input");if(!t||"object"!=typeof t)return(0,a.Z)("Setting a Configurable requires a model to set its initial properties");Object.assign(this,t),Object.entries(e).forEach((e=>{let[t,r]=e;const n=(0,o.q)(t);n.length&&r&&"object"==typeof r&&n.forEach((e=>{e in r&&((0,a.Z)('"'.concat(e,'" is a protected attribute and can not be changed in feature ').concat(t,".  It will have no effect.")),delete r[e])})),this[t]=r}))}catch(e){(0,a.Z)("An error occured while setting a Configurable",e)}}}const c={beacon:i.ce.beacon,errorBeacon:i.ce.errorBeacon,licenseKey:void 0,applicationID:void 0,sa:void 0,queueTime:void 0,applicationTime:void 0,ttGuid:void 0,user:void 0,account:void 0,product:void 0,extra:void 0,jsAttributes:{},userAttributes:void 0,atts:void 0,transactionName:void 0,tNamePlain:void 0},u={};function d(e){if(!e)throw new Error("All info objects require an agent identifier!");if(!u[e])throw new Error("Info for ".concat(e," was never set"));return u[e]}function f(e,t){if(!e)throw new Error("All info objects require an agent identifier!");u[e]=new s(t,c),(0,i.Qy)(e,u[e],"info")}const l={allow_bfcache:!0,privacy:{cookies_enabled:!0},ajax:{deny_list:void 0,enabled:!0,harvestTimeSeconds:10},distributed_tracing:{enabled:void 0,exclude_newrelic_header:void 0,cors_use_newrelic_header:void 0,cors_use_tracecontext_headers:void 0,allowed_origins:void 0},ssl:void 0,obfuscate:void 0,jserrors:{enabled:!0,harvestTimeSeconds:10},metrics:{enabled:!0},page_action:{enabled:!0,harvestTimeSeconds:30},page_view_event:{enabled:!0},page_view_timing:{enabled:!0,harvestTimeSeconds:30,long_task:!1},session_trace:{enabled:!0,harvestTimeSeconds:10},spa:{enabled:!0,harvestTimeSeconds:10}},g={};function h(e){if(!e)throw new Error("All configuration objects require an agent identifier!");if(!g[e])throw new Error("Configuration for ".concat(e," was never set"));return g[e]}function p(e,t){if(!e)throw new Error("All configuration objects require an agent identifier!");g[e]=new s(t,l),(0,i.Qy)(e,g[e],"config")}function v(e,t){if(!e)throw new Error("All configuration objects require an agent identifier!");var r=h(e);if(r){for(var n=t.split("."),i=0;i<n.length-1;i++)if("object"!=typeof(r=r[n[i]]))return;r=r[n[n.length-1]]}return r}const m={accountID:void 0,trustKey:void 0,agentID:void 0,licenseKey:void 0,applicationID:void 0,xpid:void 0},b={};function y(e){if(!e)throw new Error("All loader-config objects require an agent identifier!");if(!b[e])throw new Error("LoaderConfig for ".concat(e," was never set"));return b[e]}function w(e,t){if(!e)throw new Error("All loader-config objects require an agent identifier!");b[e]=new s(t,m),(0,i.Qy)(e,b[e],"loader_config")}const A=(0,i.mF)().o;var x=null,j=null;const _=/Version\/(\S+)\s+Safari/;if(navigator.userAgent){var D=navigator.userAgent,E=D.match(_);E&&-1===D.indexOf("Chrome")&&-1===D.indexOf("Chromium")&&(x="Safari",j=E[1])}function k(e,t){if(!x)return!1;if(e!==x)return!1;if(!t)return!0;if(!j)return!1;for(var r=j.split("."),n=t.split("."),i=0;i<n.length;i++)if(n[i]!==r[i])return!1;return!0}var S=r(2400),P=r(2374),I=r(8226);const T=e=>({buildEnv:I.Re,bytesSent:{},customTransaction:void 0,disabled:!1,distMethod:I.gF,isolatedBacklog:!1,loaderType:void 0,maxBytes:3e4,offset:Math.floor(P._A?.performance?.timeOrigin||P._A?.performance?.timing?.navigationStart||Date.now()),onerror:void 0,origin:""+P._A.location,ptid:void 0,releaseIds:{},sessionId:1==v(e,"privacy.cookies_enabled")?(0,S.Bj)():null,xhrWrappable:"function"==typeof P._A.XMLHttpRequest?.prototype?.addEventListener,userAgent:n,version:I.q4}),N={};function O(e){if(!e)throw new Error("All runtime objects require an agent identifier!");if(!N[e])throw new Error("Runtime for ".concat(e," was never set"));return N[e]}function C(e,t){if(!e)throw new Error("All runtime objects require an agent identifier!");N[e]=new s(t,T(e)),(0,i.Qy)(e,N[e],"runtime")}function R(e){return function(e){try{const t=d(e);return!!t.licenseKey&&!!t.errorBeacon&&!!t.applicationID}catch(e){return!1}}(e)}},8226:(e,t,r)=>{"use strict";r.d(t,{Re:()=>i,gF:()=>o,q4:()=>n});const n="1.230.0",i="PROD",o="CDN"},9557:(e,t,r)=>{"use strict";r.d(t,{w:()=>o});var n=r(8610);const i={agentIdentifier:""};class o{constructor(e){try{if("object"!=typeof e)return(0,n.Z)("shared context requires an object as input");this.sharedContext={},Object.assign(this.sharedContext,i),Object.entries(e).forEach((e=>{let[t,r]=e;Object.keys(i).includes(t)&&(this.sharedContext[t]=r)}))}catch(e){(0,n.Z)("An error occured while setting SharedContext",e)}}}},4329:(e,t,r)=>{"use strict";r.d(t,{L:()=>d,R:()=>c});var n=r(3752),i=r(7022),o=r(4045),a=r(2325);const s={};function c(e,t){const r={staged:!1,priority:a.p[t]||0};u(e),s[e].get(t)||s[e].set(t,r)}function u(e){e&&(s[e]||(s[e]=new Map))}function d(){let e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:"",t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"feature";if(u(e),!e||!s[e].get(t))return a(t);s[e].get(t).staged=!0;const r=Array.from(s[e]);function a(t){const r=e?n.ee.get(e):n.ee,a=o.X.handlers;if(r.backlog&&a){var s=r.backlog[t],c=a[t];if(c){for(var u=0;s&&u<s.length;++u)f(s[u],c);(0,i.D)(c,(function(e,t){(0,i.D)(t,(function(t,r){r[0].on(e,r[1])}))}))}delete a[t],r.backlog[t]=null,r.emit("drain-"+t,[])}}r.every((e=>{let[t,r]=e;return r.staged}))&&(r.sort(((e,t)=>e[1].priority-t[1].priority)),r.forEach((e=>{let[t]=e;a(t)})))}function f(e,t){var r=e[1];(0,i.D)(t[r],(function(t,r){var n=e[0];if(r[0]===n){var i=r[1],o=e[3],a=e[2];i.apply(o,a)}}))}},3752:(e,t,r)=>{"use strict";r.d(t,{ee:()=>u});var n=r(6797),i=r(3916),o=r(7022),a=r(27),s="nr@context";let c=(0,n.fP)();var u;function d(){}function f(){return new d}function l(){u.aborted=!0,u.backlog={}}c.ee?u=c.ee:(u=function e(t,r){var n={},c={},g={},h=!1;try{h=16===r.length&&(0,a.OP)(r).isolatedBacklog}catch(e){}var p={on:b,addEventListener:b,removeEventListener:y,emit:m,get:A,listeners:w,context:v,buffer:x,abort:l,aborted:!1,isBuffering:j,debugId:r,backlog:h?{}:t&&"object"==typeof t.backlog?t.backlog:{}};return p;function v(e){return e&&e instanceof d?e:e?(0,i.X)(e,s,f):f()}function m(e,r,n,i,o){if(!1!==o&&(o=!0),!u.aborted||i){t&&o&&t.emit(e,r,n);for(var a=v(n),s=w(e),d=s.length,f=0;f<d;f++)s[f].apply(a,r);var l=_()[c[e]];return l&&l.push([p,e,r,a]),a}}function b(e,t){n[e]=w(e).concat(t)}function y(e,t){var r=n[e];if(r)for(var i=0;i<r.length;i++)r[i]===t&&r.splice(i,1)}function w(e){return n[e]||[]}function A(t){return g[t]=g[t]||e(p,t)}function x(e,t){var r=_();p.aborted||(0,o.D)(e,(function(e,n){t=t||"feature",c[n]=t,t in r||(r[t]=[])}))}function j(e){return!!_()[c[e]]}function _(){return p.backlog}}(void 0,"globalEE"),c.ee=u)},9252:(e,t,r)=>{"use strict";r.d(t,{E:()=>n,p:()=>i});var n=r(3752).ee.get("handle");function i(e,t,r,i,o){o?(o.buffer([e],i),o.emit(e,t,r)):(n.buffer([e],i),n.emit(e,t,r))}},4045:(e,t,r)=>{"use strict";r.d(t,{X:()=>o});var n=r(9252);o.on=a;var i=o.handlers={};function o(e,t,r,o){a(o||n.E,i,e,t,r)}function a(e,t,r,i,o){o||(o="feature"),e||(e=n.E);var a=t[o]=t[o]||{};(a[r]=a[r]||[]).push([e,i])}},8544:(e,t,r)=>{"use strict";r.d(t,{bP:()=>s,iz:()=>c,m$:()=>a});var n=r(2374);let i=!1,o=!1;try{const e={get passive(){return i=!0,!1},get signal(){return o=!0,!1}};n._A.addEventListener("test",null,e),n._A.removeEventListener("test",null,e)}catch(e){}function a(e,t){return i||o?{capture:!!e,passive:i,signal:t}:!!e}function s(e,t){let r=arguments.length>2&&void 0!==arguments[2]&&arguments[2];window.addEventListener(e,t,a(r))}function c(e,t){let r=arguments.length>2&&void 0!==arguments[2]&&arguments[2];document.addEventListener(e,t,a(r))}},5526:(e,t,r)=>{"use strict";r.d(t,{Rl:()=>i,ky:()=>o});var n=r(2374);function i(){var e=null,t=0,r=n._A?.crypto||n._A?.msCrypto;function i(){return e?15&e[t++]:16*Math.random()|0}r&&r.getRandomValues&&(e=r.getRandomValues(new Uint8Array(31)));for(var o,a="xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",s="",c=0;c<a.length;c++)s+="x"===(o=a[c])?i().toString(16):"y"===o?(o=3&i()|8).toString(16):o;return s}function o(e){var t=null,r=0,n=self.crypto||self.msCrypto;n&&n.getRandomValues&&Uint8Array&&(t=n.getRandomValues(new Uint8Array(31)));for(var i=[],o=0;o<e;o++)i.push(a().toString(16));return i.join("");function a(){return t?15&t[r++]:16*Math.random()|0}}},2053:(e,t,r)=>{"use strict";function n(){return Math.round(performance.now())}r.d(t,{z:()=>n})},8610:(e,t,r)=>{"use strict";function n(e,t){"function"==typeof console.warn&&(console.warn("New Relic: ".concat(e)),t&&console.warn(t))}r.d(t,{Z:()=>n})},3916:(e,t,r)=>{"use strict";r.d(t,{X:()=>i});var n=Object.prototype.hasOwnProperty;function i(e,t,r){if(n.call(e,t))return e[t];var i=r();if(Object.defineProperty&&Object.keys)try{return Object.defineProperty(e,t,{value:i,writable:!0,enumerable:!1}),i}catch(e){}return e[t]=i,i}},2374:(e,t,r)=>{"use strict";r.d(t,{_A:()=>o,il:()=>n,lW:()=>a,v6:()=>i});const n=Boolean("undefined"!=typeof window&&window.document),i=Boolean("undefined"!=typeof WorkerGlobalScope&&self.navigator instanceof WorkerNavigator);let o=(()=>{if(n)return window;if(i){if("undefined"!=typeof globalThis&&globalThis instanceof WorkerGlobalScope)return globalThis;if(self instanceof WorkerGlobalScope)return self}throw new Error('New Relic browser agent shutting down due to error: Unable to locate global scope. This is possibly due to code redefining browser global variables like "self" and "window".')})();function a(){return o}},7022:(e,t,r)=>{"use strict";r.d(t,{D:()=>n});const n=(e,t)=>Object.entries(e||{}).map((e=>{let[r,n]=e;return t(r,n)}))},2438:(e,t,r)=>{"use strict";r.d(t,{P:()=>o});var n=r(3752);const i=()=>{const e=new WeakSet;return(t,r)=>{if("object"==typeof r&&null!==r){if(e.has(r))return;e.add(r)}return r}};function o(e){try{return JSON.stringify(e,i())}catch(e){try{n.ee.emit("internal-error",[e])}catch(e){}}}},2650:(e,t,r)=>{"use strict";r.d(t,{K:()=>a,b:()=>o});var n=r(8544);function i(){return"undefined"==typeof document||"complete"===document.readyState}function o(e,t){if(i())return e();(0,n.bP)("load",e,t)}function a(e){if(i())return e();(0,n.iz)("DOMContentLoaded",e)}},6797:(e,t,r)=>{"use strict";r.d(t,{EZ:()=>u,Qy:()=>c,ce:()=>o,fP:()=>a,gG:()=>d,mF:()=>s});var n=r(2053),i=r(2374);const o={beacon:"bam.nr-data.net",errorBeacon:"bam.nr-data.net"};function a(){return i._A.NREUM||(i._A.NREUM={}),void 0===i._A.newrelic&&(i._A.newrelic=i._A.NREUM),i._A.NREUM}function s(){let e=a();return e.o||(e.o={ST:i._A.setTimeout,SI:i._A.setImmediate,CT:i._A.clearTimeout,XHR:i._A.XMLHttpRequest,REQ:i._A.Request,EV:i._A.Event,PR:i._A.Promise,MO:i._A.MutationObserver,FETCH:i._A.fetch}),e}function c(e,t,r){let i=a();const o=i.initializedAgents||{},s=o[e]||{};return Object.keys(s).length||(s.initializedAt={ms:(0,n.z)(),date:new Date}),i.initializedAgents={...o,[e]:{...s,[r]:t}},i}function u(e,t){a()[e]=t}function d(){return function(){let e=a();const t=e.info||{};e.info={beacon:o.beacon,errorBeacon:o.errorBeacon,...t}}(),function(){let e=a();const t=e.init||{};e.init={...t}}(),s(),function(){let e=a();const t=e.loader_config||{};e.loader_config={...t}}(),a()}},6998:(e,t,r)=>{"use strict";r.d(t,{N:()=>i});var n=r(8544);function i(e){let t=arguments.length>1&&void 0!==arguments[1]&&arguments[1];return void(0,n.iz)("visibilitychange",(function(){if(t){if("hidden"!=document.visibilityState)return;e()}e(document.visibilityState)}))}},2400:(e,t,r)=>{"use strict";r.d(t,{Bj:()=>c,GD:()=>s,J8:()=>u,ju:()=>o});var n=r(5526);const i="NRBA/";function o(e,t){let r=arguments.length>2&&void 0!==arguments[2]?arguments[2]:"";try{return window.sessionStorage.setItem(i+r+e,t),!0}catch(e){return!1}}function a(e){let t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"";return window.sessionStorage.getItem(i+t+e)}function s(e){let t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:"";try{window.sessionStorage.removeItem(i+t+e)}catch(e){}}function c(){try{let e;return null===(e=a("SESSION_ID"))&&(e=(0,n.ky)(16),o("SESSION_ID",e)),e}catch(e){return null}}function u(){let e=arguments.length>0&&void 0!==arguments[0]?arguments[0]:"";const t=i+e,r={};try{for(let n=0;n<window.sessionStorage.length;n++){let i=window.sessionStorage.key(n);i.startsWith(t)&&(i=i.slice(t.length),r[i]=a(i,e))}}catch(e){}return r}},6034:(e,t,r)=>{"use strict";r.d(t,{gF:()=>o,mY:()=>i,t9:()=>n,vz:()=>s,xS:()=>a});const n=r(2325).D.metrics,i="sm",o="cm",a="storeSupportabilityMetrics",s="storeEventMetrics"},2484:(e,t,r)=>{"use strict";r.d(t,{Dz:()=>i,OJ:()=>a,qw:()=>o,t9:()=>n});const n=r(2325).D.pageViewEvent,i="firstbyte",o="domcontent",a="windowload"},6382:(e,t,r)=>{"use strict";r.d(t,{t:()=>n});const n=r(2325).D.pageViewTiming},1509:(e,t,r)=>{"use strict";r.d(t,{W:()=>s});var n=r(27),i=r(3752),o=r(2384),a=r(6797);class s{constructor(e,t,r){this.agentIdentifier=e,this.aggregator=t,this.ee=i.ee.get(e,(0,n.OP)(this.agentIdentifier).isolatedBacklog),this.featureName=r,this.blocked=!1,this.checkConfiguration()}checkConfiguration(){if(!(0,n.lF)(this.agentIdentifier)){let e={...(0,a.gG)().info?.jsAttributes};try{e={...e,...(0,n.C5)(this.agentIdentifier)?.jsAttributes}}catch(e){}(0,o.j)(this.agentIdentifier,{...(0,a.gG)(),info:{...(0,a.gG)().info,jsAttributes:e}})}}}},2384:(e,t,r)=>{"use strict";r.d(t,{j:()=>w});var n=r(2325),i=r(27),o=r(9252),a=r(3752),s=r(2053),c=r(4329),u=r(2650),d=r(2374),f=r(8610),l=r(6034),g=r(6797),h=r(2400);const p="CUSTOM/";function v(){const e=(0,g.gG)();["setErrorHandler","finished","addToTrace","inlineHit","addRelease","addPageAction","setCurrentRouteName","setPageViewName","setCustomAttribute","interaction","noticeError","setUserId"].forEach((t=>{e[t]=function(){for(var r=arguments.length,n=new Array(r),i=0;i<r;i++)n[i]=arguments[i];return function(t){for(var r=arguments.length,n=new Array(r>1?r-1:0),i=1;i<r;i++)n[i-1]=arguments[i];let o=[];return Object.values(e.initializedAgents).forEach((e=>{e.exposed&&e.api[t]&&o.push(e.api[t](...n))})),o.length>1?returnsVals:o[0]}(t,...n)}}))}var m=r(7022);const b={stn:[n.D.sessionTrace],err:[n.D.jserrors,n.D.metrics],ins:[n.D.pageAction],spa:[n.D.spa]};const y={};function w(e){let t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{},w=arguments.length>2?arguments[2]:void 0,A=arguments.length>3?arguments[3]:void 0,{init:x,info:j,loader_config:_,runtime:D={loaderType:w},exposed:E=!0}=t;const k=(0,g.gG)();if(j||(x=k.init,j=k.info,_=k.loader_config),j.jsAttributes??={},d.v6&&(j.jsAttributes.isWorker=!0),d.il){let e=(0,h.J8)(p);Object.assign(j.jsAttributes,e)}(0,i.CX)(e,j),(0,i.Dg)(e,x||{}),(0,i.GE)(e,_||{}),(0,i.sU)(e,D),v();const S=function(e,t){t||(0,c.R)(e,"api");const g={};var v=a.ee.get(e),m=v.get("tracer"),b="api-",y=b+"ixn-";function w(t,r,n,o){const a=(0,i.C5)(e);return null===r?(delete a.jsAttributes[t],d.il&&(0,h.GD)(t,p)):((0,i.CX)(e,{...a,jsAttributes:{...a.jsAttributes,[t]:r}}),d.il&&o&&(0,h.ju)(t,r,p)),j(b,n,!0)()}function A(){}["setErrorHandler","finished","addToTrace","inlineHit","addRelease"].forEach((e=>g[e]=j(b,e,!0,"api"))),g.addPageAction=j(b,"addPageAction",!0,n.D.pageAction),g.setCurrentRouteName=j(b,"routeName",!0,n.D.spa),g.setPageViewName=function(t,r){if("string"==typeof t)return"/"!==t.charAt(0)&&(t="/"+t),(0,i.OP)(e).customTransaction=(r||"http://custom.transaction")+t,j(b,"setPageViewName",!0)()},g.setCustomAttribute=function(e,t){let r=arguments.length>2&&void 0!==arguments[2]&&arguments[2];if("string"==typeof e){if(["string","number"].includes(typeof t)||null===t)return w(e,t,"setCustomAttribute",r);(0,f.Z)("Failed to execute setCustomAttribute.\nNon-null value must be a string or number type, but a type of <".concat(typeof t,"> was provided."))}else(0,f.Z)("Failed to execute setCustomAttribute.\nName must be a string type, but a type of <".concat(typeof e,"> was provided."))},g.setUserId=function(e){if("string"==typeof e||null===e)return w("enduser.id",e,"setUserId",!0);(0,f.Z)("Failed to execute setUserId.\nNon-null value must be a string type, but a type of <".concat(typeof e,"> was provided."))},g.interaction=function(){return(new A).get()};var x=A.prototype={createTracer:function(e,t){var r={},i=this,a="function"==typeof t;return(0,o.p)(y+"tracer",[(0,s.z)(),e,r],i,n.D.spa,v),function(){if(m.emit((a?"":"no-")+"fn-start",[(0,s.z)(),i,a],r),a)try{return t.apply(this,arguments)}catch(e){throw m.emit("fn-err",[arguments,this,"string"==typeof e?new Error(e):e],r),e}finally{m.emit("fn-end",[(0,s.z)()],r)}}}};function j(e,t,r,i){return function(){return(0,o.p)(l.xS,["API/"+t+"/called"],void 0,n.D.metrics,v),i&&(0,o.p)(e+t,[(0,s.z)(),...arguments],r?null:this,i,v),r?void 0:this}}function _(){r.e(439).then(r.bind(r,5692)).then((t=>{let{setAPI:r}=t;r(e),(0,c.L)(e,"api")})).catch((()=>(0,f.Z)("Downloading runtime APIs failed...")))}return["actionText","setName","setAttribute","save","ignore","onEnd","getContext","end","get"].forEach((e=>{x[e]=j(y,e,void 0,n.D.spa)})),g.noticeError=function(e,t){"string"==typeof e&&(e=new Error(e)),(0,o.p)(l.xS,["API/noticeError/called"],void 0,n.D.metrics,v),(0,o.p)("err",[e,(0,s.z)(),!1,t],void 0,n.D.jserrors,v)},d.v6?_():(0,u.b)((()=>_()),!0),g}(e,A);return(0,g.Qy)(e,S,"api"),(0,g.Qy)(e,E,"exposed"),(0,g.EZ)("activatedFeatures",y),(0,g.EZ)("setToken",(t=>function(e,t){var r=a.ee.get(t);e&&"object"==typeof e&&((0,m.D)(e,(function(e,t){if(!t)return(b[e]||[]).forEach((t=>{(0,o.p)("block-"+e,[],void 0,t,r)}));y[e]||((0,o.p)("feat-"+e,[],void 0,b[e],r),y[e]=!0)})),(0,c.L)(t,n.D.pageViewEvent))}(t,e))),S}},909:(e,t,r)=>{"use strict";r.d(t,{Z:()=>i,q:()=>o});var n=r(2325);function i(e){switch(e){case n.D.ajax:return[n.D.jserrors];case n.D.sessionTrace:return[n.D.ajax,n.D.pageViewEvent];case n.D.pageViewTiming:return[n.D.pageViewEvent];default:return[]}}function o(e){return e===n.D.jserrors?[]:["auto"]}},2325:(e,t,r)=>{"use strict";r.d(t,{D:()=>n,p:()=>i});const n={ajax:"ajax",jserrors:"jserrors",metrics:"metrics",pageAction:"page_action",pageViewEvent:"page_view_event",pageViewTiming:"page_view_timing",sessionTrace:"session_trace",spa:"spa"},i={[n.pageViewEvent]:1,[n.pageViewTiming]:2,[n.metrics]:3,[n.jserrors]:4,[n.ajax]:5,[n.sessionTrace]:6,[n.pageAction]:7,[n.spa]:8}},8683:e=>{e.exports=function(e,t,r){t||(t=0),void 0===r&&(r=e?e.length:0);for(var n=-1,i=r-t||0,o=Array(i<0?0:i);++n<i;)o[n]=e[t+n];return o}}},n={};function i(e){var t=n[e];if(void 0!==t)return t.exports;var o=n[e]={exports:{}};return r[e](o,o.exports,i),o.exports}i.m=r,i.n=e=>{var t=e&&e.__esModule?()=>e.default:()=>e;return i.d(t,{a:t}),t},i.d=(e,t)=>{for(var r in t)i.o(t,r)&&!i.o(e,r)&&Object.defineProperty(e,r,{enumerable:!0,get:t[r]})},i.f={},i.e=e=>Promise.all(Object.keys(i.f).reduce(((t,r)=>(i.f[r](e,t),t)),[])),i.u=e=>(({78:"page_action-aggregate",147:"metrics-aggregate",193:"session_trace-aggregate",317:"jserrors-aggregate",348:"page_view_timing-aggregate",439:"async-api",729:"lazy-loader",786:"page_view_event-aggregate",873:"spa-aggregate",898:"ajax-aggregate"}[e]||e)+"."+{78:"4d79b951",147:"20a08804",193:"6e2218bf",317:"9136a849",348:"9590bdab",439:"6c072bf7",729:"ff971c03",786:"75812140",862:"9f44b58b",873:"6c038a0a",898:"bcd562bf"}[e]+"-1.230.0.min.js"),i.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),e={},t="NRBA:",i.l=(r,n,o,a)=>{if(e[r])e[r].push(n);else{var s,c;if(void 0!==o)for(var u=document.getElementsByTagName("script"),d=0;d<u.length;d++){var f=u[d];if(f.getAttribute("src")==r||f.getAttribute("data-webpack")==t+o){s=f;break}}s||(c=!0,(s=document.createElement("script")).charset="utf-8",s.timeout=120,i.nc&&s.setAttribute("nonce",i.nc),s.setAttribute("data-webpack",t+o),s.src=r),e[r]=[n];var l=(t,n)=>{s.onerror=s.onload=null,clearTimeout(g);var i=e[r];if(delete e[r],s.parentNode&&s.parentNode.removeChild(s),i&&i.forEach((e=>e(n))),t)return t(n)},g=setTimeout(l.bind(null,void 0,{type:"timeout",target:s}),12e4);s.onerror=l.bind(null,s.onerror),s.onload=l.bind(null,s.onload),c&&document.head.appendChild(s)}},i.r=e=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},i.p="https://js-agent.newrelic.com/",(()=>{var e={30:0,768:0};i.f.j=(t,r)=>{var n=i.o(e,t)?e[t]:void 0;if(0!==n)if(n)r.push(n[2]);else{var o=new Promise(((r,i)=>n=e[t]=[r,i]));r.push(n[2]=o);var a=i.p+i.u(t),s=new Error;i.l(a,(r=>{if(i.o(e,t)&&(0!==(n=e[t])&&(e[t]=void 0),n)){var o=r&&("load"===r.type?"missing":r.type),a=r&&r.target&&r.target.src;s.message="Loading chunk "+t+" failed.\n("+o+": "+a+")",s.name="ChunkLoadError",s.type=o,s.request=a,n[1](s)}}),"chunk-"+t,t)}};var t=(t,r)=>{var n,o,[a,s,c]=r,u=0;if(a.some((t=>0!==e[t]))){for(n in s)i.o(s,n)&&(i.m[n]=s[n]);if(c)c(i)}for(t&&t(r);u<a.length;u++)o=a[u],i.o(e,o)&&e[o]&&e[o][0](),e[o]=0},r=window.webpackChunkNRBA=window.webpackChunkNRBA||[];r.forEach(t.bind(null,0)),r.push=t.bind(null,r.push.bind(r))})();var o={};(()=>{"use strict";i.r(o);var e=i(2325),t=i(27);const r=Object.values(e.D);function n(e){const n={};return r.forEach((r=>{n[r]=function(e,r){return!1!==(0,t.Mt)(r,"".concat(e,".enabled"))}(r,e)})),n}var a=i(2384),s=i(909),c=i(9252),u=i(8768),d=i(4329),f=i(1509),l=i(2650),g=i(2374),h=i(8610);class p extends f.W{constructor(e,t,r){let n=!(arguments.length>3&&void 0!==arguments[3])||arguments[3];super(e,t,r),this.hasAggregator=!1,this.auto=n,this.abortHandler,n&&(0,d.R)(e,r)}importAggregator(){if(this.hasAggregator||!this.auto)return;this.hasAggregator=!0;const e=async()=>{try{const{lazyLoader:e}=await i.e(729).then(i.bind(i,8110)),{Aggregate:t}=await e(this.featureName,"aggregate");new t(this.agentIdentifier,this.aggregator)}catch(e){(0,h.Z)("Downloading ".concat(this.featureName," failed...")),this.abortHandler?.()}};g.v6?e():(0,l.b)((()=>e()),!0)}}var v=i(2484),m=i(2053);class b extends p{static featureName=v.t9;constructor(r,n){let i=!(arguments.length>2&&void 0!==arguments[2])||arguments[2];if(super(r,n,v.t9,i),("undefined"==typeof PerformanceNavigationTiming||u.T)&&"undefined"!=typeof PerformanceTiming){const n=(0,t.OP)(r);n[v.Dz]=Math.max(Date.now()-n.offset,0),(0,l.K)((()=>n[v.qw]=Math.max((0,m.z)()-n[v.Dz],0))),(0,l.b)((()=>{const t=(0,m.z)();n[v.OJ]=Math.max(t-n[v.Dz],0),(0,c.p)("timing",["load",t],void 0,e.D.pageViewTiming,this.ee)}))}this.importAggregator()}}var y=i(9557),w=i(7022);class A extends y.w{constructor(e){super(e),this.aggregatedData={}}store(e,t,r,n,i){var o=this.getBucket(e,t,r,i);return o.metrics=function(e,t){t||(t={count:0});return t.count+=1,(0,w.D)(e,(function(e,r){t[e]=x(r,t[e])})),t}(n,o.metrics),o}merge(e,t,r,n,i){var o=this.getBucket(e,t,n,i);if(o.metrics){var a=o.metrics;a.count+=r.count,(0,w.D)(r,(function(e,t){if("count"!==e){var n=a[e],i=r[e];i&&!i.c?a[e]=x(i.t,n):a[e]=function(e,t){if(!t)return e;t.c||(t=j(t.t));return t.min=Math.min(e.min,t.min),t.max=Math.max(e.max,t.max),t.t+=e.t,t.sos+=e.sos,t.c+=e.c,t}(i,a[e])}}))}else o.metrics=r}storeMetric(e,t,r,n){var i=this.getBucket(e,t,r);return i.stats=x(n,i.stats),i}getBucket(e,t,r,n){this.aggregatedData[e]||(this.aggregatedData[e]={});var i=this.aggregatedData[e][t];return i||(i=this.aggregatedData[e][t]={params:r||{}},n&&(i.custom=n)),i}get(e,t){return t?this.aggregatedData[e]&&this.aggregatedData[e][t]:this.aggregatedData[e]}take(e){for(var t={},r="",n=!1,i=0;i<e.length;i++)t[r=e[i]]=_(this.aggregatedData[r]),t[r].length&&(n=!0),delete this.aggregatedData[r];return n?t:null}}function x(e,t){return null==e?function(e){e?e.c++:e={c:1};return e}(t):t?(t.c||(t=j(t.t)),t.c+=1,t.t+=e,t.sos+=e*e,e>t.max&&(t.max=e),e<t.min&&(t.min=e),t):{t:e}}function j(e){return{t:e,min:e,max:e,sos:e*e,c:1}}function _(e){return"object"!=typeof e?[]:(0,w.D)(e,D)}function D(e,t){return t}var E=i(6797),k=i(5526),S=i(2438);var P=i(6998),I=i(8544),T=i(6382);class N extends p{static featureName=T.t;constructor(e,r){let n=!(arguments.length>2&&void 0!==arguments[2])||arguments[2];super(e,r,T.t,n),g.il&&((0,t.OP)(e).initHidden=Boolean("hidden"===document.visibilityState),(0,P.N)((()=>(0,c.p)("docHidden",[(0,m.z)()],void 0,T.t,this.ee)),!0),(0,I.bP)("pagehide",(()=>(0,c.p)("winPagehide",[(0,m.z)()],void 0,T.t,this.ee))),this.importAggregator())}}const O=Boolean(g._A?.Worker),C=Boolean(g._A?.SharedWorker),R=Boolean(g._A?.navigator?.serviceWorker);let M,B,W;var z=i(6034),q=i(3752),L=i(8683),V=i.n(L);const Z="nr@original";var U=Object.prototype.hasOwnProperty,F=!1;function G(e,t){return e||(e=q.ee),r.inPlace=function(e,t,n,i,o){n||(n="");var a,s,c,u="-"===n.charAt(0);for(c=0;c<t.length;c++)Q(a=e[s=t[c]])||(e[s]=r(a,u?s+n:n,i,s,o))},r.flag=Z,r;function r(t,r,i,o,a){return Q(t)?t:(r||(r=""),nrWrapper[Z]=t,X(t,nrWrapper,e),nrWrapper);function nrWrapper(){var s,c,u,d;try{c=this,s=V()(arguments),u="function"==typeof i?i(s,c):i||{}}catch(t){H([t,"",[s,c,o],u],e)}n(r+"start",[s,c,o],u,a);try{return d=t.apply(c,s)}catch(e){throw n(r+"err",[s,c,e],u,a),e}finally{n(r+"end",[s,c,d],u,a)}}}function n(r,n,i,o){if(!F||t){var a=F;F=!0;try{e.emit(r,n,i,t,o)}catch(t){H([t,r,n,i],e)}F=a}}}function H(e,t){t||(t=q.ee);try{t.emit("internal-error",e)}catch(e){}}function X(e,t,r){if(Object.defineProperty&&Object.keys)try{return Object.keys(e).forEach((function(r){Object.defineProperty(t,r,{get:function(){return e[r]},set:function(t){return e[r]=t,t}})})),t}catch(e){H([e],r)}for(var n in e)U.call(e,n)&&(t[n]=e[n]);return t}function Q(e){return!(e&&e instanceof Function&&e.apply&&!e[Z])}const K={},J=["debug","error","info","log","trace","warn"];function Y(e){const t=function(e){return(e||q.ee).get("console")}(e);return K[t.debugId]||(K[t.debugId]=!0,G(t).inPlace(g._A.console,J,"-console-")),t}i(3916);XMLHttpRequest;g._A.Request,g._A.Response;class $ extends p{static featureName=z.t9;constructor(t,r){let n=!(arguments.length>2&&void 0!==arguments[2])||arguments[2];super(t,r,z.t9,n),function(e){if(!M){if(O){M=Worker;try{g._A.Worker=r(M,"Dedicated")}catch(e){o(e,"Dedicated")}if(C){B=SharedWorker;try{g._A.SharedWorker=r(B,"Shared")}catch(e){o(e,"Shared")}}else n("Shared");if(R){W=navigator.serviceWorker.register;try{g._A.navigator.serviceWorker.register=(t=W,function(){for(var e=arguments.length,r=new Array(e),n=0;n<e;n++)r[n]=arguments[n];return i("Service",r[1]?.type),t.apply(navigator.serviceWorker,r)})}catch(e){o(e,"Service")}}else n("Service");var t;return}n("All")}function r(e,t){return"undefined"==typeof Proxy?e:new Proxy(e,{construct:(e,r)=>(i(t,r[1]?.type),new e(...r))})}function n(t){g.v6||e("Workers/".concat(t,"/Unavailable"))}function i(t,r){e("Workers/".concat(t,"module"===r?"/Module":"/Classic"))}function o(t,r){e("Workers/".concat(r,"/SM/Unsupported")),(0,h.Z)("NR Agent: Unable to capture ".concat(r," workers."),t)}}((t=>(0,c.p)(z.xS,[t],void 0,e.D.metrics,this.ee))),this.addConsoleSupportabilityMetrics(),this.importAggregator()}addConsoleSupportabilityMetrics(){const t=Y(this.ee);for(const r of["Debug","Error","Info","Log","Trace","Warn"])t.on("".concat(r.toLowerCase(),"-console-start"),(function(n,i){let o=[];for(const e of n)"function"==typeof e||e&&e.message&&e.stack?o.push(e.toString()):o.push(e);const a=(0,S.P)(o);(0,c.p)(z.xS,["Console/".concat(r,"/Seen"),a.length],void 0,e.D.metrics,t)}))}}new class{constructor(e){let t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:(0,k.ky)(16);this.agentIdentifier=t,this.sharedAggregator=new A({agentIdentifier:this.agentIdentifier}),this.features={},this.desiredFeatures=new Set(e.features||[]),this.desiredFeatures.add(b),Object.assign(this,(0,a.j)(this.agentIdentifier,e,e.loaderType||"agent")),this.start()}get config(){return{info:(0,t.C5)(this.agentIdentifier),init:(0,t.P_)(this.agentIdentifier),loader_config:(0,t.DL)(this.agentIdentifier),runtime:(0,t.OP)(this.agentIdentifier)}}start(){const t="features";try{const r=n(this.agentIdentifier),i=Array.from(this.desiredFeatures);i.sort(((t,r)=>e.p[t.featureName]-e.p[r.featureName])),i.forEach((t=>{if(r[t.featureName]||t.featureName===e.D.pageViewEvent){const e=(0,s.Z)(t.featureName);e.every((e=>r[e]))||(0,h.Z)("".concat(t.featureName," is enabled but one or more dependent features has been disabled (").concat((0,S.P)(e),"). This may cause unintended consequences or missing data...")),this.features[t.featureName]=new t(this.agentIdentifier,this.sharedAggregator)}})),(0,E.Qy)(this.agentIdentifier,this.features,t)}catch(e){(0,h.Z)("Failed to initialize all enabled instrument classes (agent aborted) -",e);for(const e in this.features)this.features[e].abortHandler?.();const r=(0,E.fP)();return delete r.initializedAgents[this.agentIdentifier]?.api,delete r.initializedAgents[this.agentIdentifier]?.[t],delete this.sharedAggregator,r.ee?.abort(),delete r.ee?.get(this.agentIdentifier),!1}}}({features:[b,N,$],loaderType:"lite"})})(),window.NRBA=o})();</script><meta content="noindex" name="robots" /><script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC0BuJ43Ncbmuro17vVxWJWrOzzAPZ0rQE&amp;libraries=places&amp;language=en"></script><link rel="stylesheet" media="screen" href="/assets/application-1e5a6017c873d97c5d5844e64ff5031a5e6183d183ad0a004cf6a15a8ba137a7.css" /><link rel="stylesheet" media="screen" href="/packs/css/4081-1044bc7f.css" />
   <link rel="stylesheet" media="screen" href="/packs/css/6188-50231742.css" />
   <link rel="stylesheet" media="screen" href="/packs/css/7454-f0d96ad9.css" />
   <link rel="stylesheet" media="screen" href="/packs/css/application-395dffc4.css" /><script src="/packs/js/runtime-854e05829e5ac6a73c42.js"></script>
@@ -1135,9 +1201,10 @@ const html = `
   </script>
   <!-- End Google Analytics -->
   </body></html>
-`
+`;
 
-const chunkedResp = Buffer.from(`SFRUUC8xLjEgMjAwIE9LDQpEYXRlOiBNb24sIDA0IFNlcCAyMDIzIDE1OjQ0OjMzIEdNVA0KQ29u
+const chunkedResp = Buffer.from(
+  `SFRUUC8xLjEgMjAwIE9LDQpEYXRlOiBNb24sIDA0IFNlcCAyMDIzIDE1OjQ0OjMzIEdNVA0KQ29u
 dGVudC1UeXBlOiB0ZXh0L2h0bWw7IGNoYXJzZXQ9dXRmLTgNClRyYW5zZmVyLUVuY29kaW5nOiBj
 aHVua2VkDQpDb25uZWN0aW9uOiBjbG9zZQ0KQ2FjaGUtQ29udHJvbDogbWF4LWFnZT0wLCBwcml2
 YXRlLCBtdXN0LXJldmFsaWRhdGUNCkVUYWc6IFcvImI4NjA4ZTM5MTk0ZTZhMTk2ZGViMjZlZDRh
@@ -2261,4 +2328,6 @@ dCB0aGUgdXNlciBJRCB1c2luZyBzaWduZWQtaW4gdXNlcl9pZC4KZ2EoJ3NldCcsICdkaW1lbnNp
 b24xJywgZmFsc2UpOwpnYSgnc2V0JywgJ2RpbWVuc2lvbjInLCAndzIwMjEnKTsKZ2EoJ3NldCcs
 ICdkaW1lbnNpb24zJywgdHJ1ZSk7CmdhKCdzZXQnLCAnZGltZW5zaW9uNCcsIHRydWUpOwpnYSgn
 c2VuZCcsICdwYWdldmlldycpOwoKPC9zY3JpcHQ+CjwhLS0gRW5kIEdvb2dsZSBBbmFseXRpY3Mg
-LS0+CjwvYm9keT48L2h0bWw+DQowDQoNCg==`, 'base64')
+LS0+CjwvYm9keT48L2h0bWw+DQowDQoNCg==`,
+  "base64"
+);

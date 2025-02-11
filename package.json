@@ -1,6 +1,6 @@
 {
-  "name": "@payatm/attestor-core",
-  "version": "3.0.5",
+  "name": "@cr3dentials/attestor-core",
+  "version": "0.0.1",
   "description": "",
   "main": "lib/index",
   "scripts": {
